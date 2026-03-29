@@ -1,0 +1,490 @@
+/* 🏗️ CIVIL ERP - PREMIUM VANILLA CSS UI KIT */
+/* This file provides a robust structure even if Tailwind fails to load. */
+
+:root {
+  --primary: #0ea5e9;
+  /* Sky Blue — primary action color */
+  --primary-dark: #0284c7;
+  --secondary: #1e293b;
+  /* Slate 800 — readable dark text (NOT black) */
+  --brand: #0ea5e9;
+  /* Energetic Sky Blue */
+  --brand-dark: #0284c7;
+  --brand-light: #e0f2fe;
+  --bg-slate: #f8fafc;
+  --white: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --text-main: #334155;
+  /* Slate 700 — light theme main text */
+  --text-muted: #64748b;
+  --success: #10b981;
+  --success-light: #d1fae5;
+  --error: #f43f5e;
+  --shadow: 0 4px 16px -4px rgba(14, 165, 233, 0.12), 0 2px 8px -2px rgba(0, 0, 0, 0.06);
+
+  /* 💡 Vibrant Category Palette (Sky, Amber, Indigo, Emerald) */
+  --dashboard-blue: #0ea5e9;
+  --sites-amber: #f59e0b;
+  --employees-purple: #8b5cf6;
+  --attendance-green: #10b981;
+  --salary-teal: #0d9488;
+  --reports-indigo: #6366f1;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-slate);
+  color: var(--text-main);
+  line-height: 1.5;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* 📱 Layout Structure */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.sidebar {
+  width: 260px;
+  background: white;
+  border-right: 1px solid var(--border);
+  color: var(--secondary);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 20px rgba(14, 165, 233, 0.06);
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 260px;
+  padding: 2.5rem;
+  transition: margin-left 0.3s ease;
+}
+
+.mobile-header {
+  display: none;
+  background: white;
+  border-bottom: 1px solid var(--border);
+  color: var(--secondary);
+  padding: 1rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+/* 🎴 Dashboard Components */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-top: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* 📊 Data Tables */
+.construction-table-container {
+  background: white;
+  border-radius: 1.5rem;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.construction-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.construction-table th {
+  background-color: var(--brand);
+  color: white;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 1.25rem 1rem;
+  border: none;
+}
+
+.construction-table td {
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.875rem;
+}
+
+/* 🔘 Buttons & Inputs */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: white;
+  box-shadow: 0 4px 14px 0 rgba(14, 165, 233, 0.39);
+}
+
+.btn-primary:hover {
+  background: var(--brand-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.23);
+}
+
+/* 🚀 ANIMATIONS & DASHBOARD EFFECTS */
+@keyframes splash-fade-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-text-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-splash {
+  animation: splash-fade-in 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-splash-text {
+  animation: splash-text-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+}
+
+.glass-dashboard {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+}
+
+.home-hero-bg {
+  background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 50%, #0c4a6e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.role-card-hover:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 40px 60px -15px rgba(15, 23, 42, 0.2);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: #f1f5f9;
+  outline: none;
+}
+
+/* 🎨 Theme Overrides */
+.text-primary {
+  color: var(--primary);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.mobile-only {
+  display: none !important;
+}
+
+.desktop-only {
+  display: block !important;
+}
+
+@media (max-width: 1024px) {
+  .mobile-only {
+    display: flex !important;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+/* 🌓 Premium Theme Synchronization */
+body {
+  background-color: var(--bg-slate);
+  color: var(--primary);
+}
+
+.text-high-contrast {
+  color: white !important;
+}
+
+.text-brand {
+  color: var(--brand) !important;
+}
+
+/* 📱 Responsive Mobile Views */
+@media (max-width: 1024px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 280px;
+    transform: translateX(-100%);
+    z-index: 1000;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    padding: 1.25rem 1rem;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.15rem !important;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .stats-recap-grid {
+    padding: 1rem 0.75rem;
+    gap: 0.5rem;
+    border-radius: 1.25rem;
+  }
+
+  .stat-card {
+    padding: 1.25rem;
+  }
+
+  .mobile-header {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    z-index: 900;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* 🏷️ Status Pills & Badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.status-pill::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-pill.active,
+.status-pill.present,
+.status-pill.confirmed {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.status-pill.active::before,
+.status-pill.present::before,
+.status-pill.confirmed::before {
+  background: #10b981;
+}
+
+.status-pill.inactive,
+.status-pill.absent,
+.status-pill.completed,
+.status-pill.error {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.status-pill.inactive::before,
+.status-pill.absent::before,
+.status-pill.completed::before,
+.status-pill.error::before {
+  background: #ef4444;
+}
+
+.status-pill.pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.status-pill.pending::before {
+  background: #f59e0b;
+}
+
+/* 🏷️ Status Pill Customizations Done */
+
+/* 🎨 Vibrant Color Utilities */
+.text-blue {
+  color: var(--dashboard-blue) !important;
+}
+
+.text-amber {
+  color: var(--sites-amber) !important;
+}
+
+.text-purple {
+  color: var(--employees-purple) !important;
+}
+
+.text-green {
+  color: var(--attendance-green) !important;
+}
+
+.text-teal {
+  color: var(--salary-teal) !important;
+}
+
+.text-indigo {
+  color: var(--reports-indigo) !important;
+}
+
+.bg-blue-soft {
+  background-color: rgba(14, 165, 233, 0.1) !important;
+}
+
+.bg-amber-soft {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.bg-purple-soft {
+  background-color: rgba(139, 92, 246, 0.1) !important;
+}
+
+.bg-green-soft {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.bg-teal-soft {
+  background-color: rgba(13, 148, 136, 0.1) !important;
+}
+
+.bg-indigo-soft {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* 🎨 Layout Refinements */
+.mobile-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  background: var(--secondary);
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
