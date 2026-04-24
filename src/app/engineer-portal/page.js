@@ -18,7 +18,10 @@ import {
   IndianRupee,
   Briefcase,
   MapPin,
-  CheckSquare
+  CheckSquare,
+  Wallet,
+  PlusCircle,
+  Trash2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -27,6 +30,7 @@ const VIEW_HOME = 'home'
 const VIEW_LABOUR = 'labour'
 const VIEW_EMPLOYEE = 'employee'
 const VIEW_ATTENDANCE = 'attendance'
+const VIEW_ADVANCE = 'advance'
 
 // ─── HELPERS ───────────────────────────────────────────────────────────────────
 function getToday() {
@@ -67,6 +71,13 @@ export default function EngineerDashboard() {
   const [submitted, setSubmitted] = useState(false)
   const [existingLog, setExistingLog] = useState([])
   const [isApproved, setIsApproved] = useState(false)
+
+  // Advance view
+  const [advances, setAdvances] = useState([])
+  const [advLoading, setAdvLoading] = useState(false)
+  const [advForm, setAdvForm] = useState({ employee_no: '', amount: '', date: getToday(), reason: '' })
+  const [advSubmitting, setAdvSubmitting] = useState(false)
+  const [advSuccess, setAdvSuccess] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -271,6 +282,51 @@ export default function EngineerDashboard() {
     return new Intl.NumberFormat('en-IN').format(val)
   }
 
+  // ── Advance functions ────────────────────────────────────────────────────────
+  async function loadAdvances() {
+    setAdvLoading(true)
+    try {
+      const { data } = await supabase
+        .from('advances')
+        .select('*')
+        .eq('location', engineer.location)
+        .eq('type', engineer.type)
+        .order('date', { ascending: false })
+      setAdvances(data || [])
+    } catch (err) { console.error(err) } finally { setAdvLoading(false) }
+  }
+
+  async function submitAdvance() {
+    if (!advForm.employee_no || !advForm.amount || advSubmitting) return
+    const emp = employees.find(e => e.employee_no === advForm.employee_no)
+    setAdvSubmitting(true)
+    try {
+      const { error } = await supabase.from('advances').insert({
+        employee_no: advForm.employee_no,
+        employee_name: emp?.name || '',
+        amount: Number(advForm.amount),
+        date: advForm.date,
+        reason: advForm.reason || null,
+        location: engineer.location,
+        type: engineer.type,
+        given_by: engineer.name
+      })
+      if (error) throw error
+      setAdvForm({ employee_no: '', amount: '', date: getToday(), reason: '' })
+      setAdvSuccess(true)
+      setTimeout(() => setAdvSuccess(false), 3000)
+      loadAdvances()
+    } catch (err) {
+      alert('Failed to save advance: ' + err.message)
+    } finally { setAdvSubmitting(false) }
+  }
+
+  async function deleteAdvance(id) {
+    if (!confirm('Delete this advance record?')) return
+    await supabase.from('advances').delete().eq('id', id)
+    loadAdvances()
+  }
+
   // ─── LOADING ─────────────────────────────────────────────────────────────────
   if (!mounted || loading) return (
     <div style={{ height: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -314,7 +370,6 @@ export default function EngineerDashboard() {
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ margin: '0 0 0.2rem', fontWeight: '900', fontSize: '1.05rem', color: 'var(--secondary)' }}>Labour Details</p>
-          {/* <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>View detailed list of all workers, wages, and categories.</p> */}
         </div>
         <ChevronRight style={{ color: '#94a3b8', flexShrink: 0 }} />
       </button>
@@ -329,7 +384,21 @@ export default function EngineerDashboard() {
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ margin: '0 0 0.2rem', fontWeight: '900', fontSize: '1.05rem', color: 'var(--secondary)' }}>Attendance</p>
-          {/* <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Mark daily attendance for workers at the site.</p> */}
+        </div>
+        <ChevronRight style={{ color: '#94a3b8', flexShrink: 0 }} />
+      </button>
+
+      {/* Advance Card */}
+      <button
+        onClick={() => { setView(VIEW_ADVANCE); loadAdvances() }}
+        style={{ width: '100%', background: 'white', border: '1px solid var(--border)', borderRadius: '1.5rem', padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', textAlign: 'left', boxShadow: 'var(--shadow)', transition: 'all 0.2s' }}
+      >
+        <div style={{ width: '52px', height: '52px', borderRadius: '1rem', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Wallet style={{ width: '26px', height: '26px', color: '#f59e0b' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: '0 0 0.2rem', fontWeight: '900', fontSize: '1.05rem', color: 'var(--secondary)' }}>Advance</p>
+          {/* <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: '600' }}>Give advance to workers</p> */}
         </div>
         <ChevronRight style={{ color: '#94a3b8', flexShrink: 0 }} />
       </button>
@@ -632,5 +701,150 @@ export default function EngineerDashboard() {
     )
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // VIEW: ADVANCE
+  // ═══════════════════════════════════════════════════════════════════════════════
+  if (view === VIEW_ADVANCE) {
+    const totalAdvanced = advances.reduce((s, a) => s + Number(a.amount), 0)
+    return (
+      <div style={{ maxWidth: '480px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0' }}>
+          <button onClick={() => setView(VIEW_HOME)} style={{ background: 'white', border: '1px solid var(--border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, boxShadow: 'var(--shadow)' }}>
+            <ArrowLeft style={{ width: '18px', height: '18px', color: 'var(--secondary)' }} />
+          </button>
+          <div>
+            <h2 style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)' }}>Advance</h2>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>{engineer.location} • {engineer.type}</p>
+          </div>
+        </div>
+
+        {/* Summary card */}
+        <div style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', borderRadius: '1.5rem', padding: '1.25rem 1.5rem', color: 'white', boxShadow: '0 8px 24px rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '1rem', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Wallet style={{ width: '26px', height: '26px', color: 'white' }} />
+          </div>
+          <div>
+            <p style={{ margin: '0 0 0.1rem', fontSize: '0.72rem', fontWeight: '700', opacity: 0.85 }}>TOTAL ADVANCED THIS SITE</p>
+            <p style={{ margin: 0, fontWeight: '900', fontSize: '1.6rem' }}>₹{fmtINR(totalAdvanced)}</p>
+            <p style={{ margin: 0, fontSize: '0.72rem', opacity: 0.8 }}>{advances.length} record{advances.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.25rem' }}>
+          <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)', fontSize: '1rem' }}>Worker List</p>
+          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>Tap to give advance</p>
+        </div>
+
+        {/* Success toast */}
+        {advSuccess && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16,185,129,0.08)', border: '1px solid var(--attendance-green)', borderRadius: '0.75rem', padding: '0.65rem 0.85rem' }}>
+            <CheckCircle2 style={{ width: '18px', height: '18px', color: 'var(--attendance-green)', flexShrink: 0 }} />
+            <span style={{ fontWeight: '700', color: 'var(--attendance-green)', fontSize: '0.85rem' }}>Advance saved successfully!</span>
+          </div>
+        )}
+
+        {/* Employee cards */}
+        {employees.map(emp => {
+          const isExpanded = advForm.employee_no === emp.employee_no
+          return (
+            <div key={emp.employee_no} style={{ background: 'white', borderRadius: '1.5rem', border: `2px solid ${isExpanded ? '#f59e0b' : 'var(--border)'}`, overflow: 'hidden', transition: 'border-color 0.2s', boxShadow: isExpanded ? '0 4px 14px rgba(245,158,11,0.15)' : 'var(--shadow)' }}>
+              {/* Employee row — tap to expand */}
+              <div
+                onClick={() => setAdvForm(f => f.employee_no === emp.employee_no
+                  ? { employee_no: '', amount: '', date: getToday(), reason: '' }
+                  : { employee_no: emp.employee_no, amount: '', date: getToday(), reason: '' }
+                )}
+                style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.1rem 1.25rem', cursor: 'pointer' }}
+              >
+                <div style={{ width: '44px', height: '44px', borderRadius: '0.85rem', background: isExpanded ? 'rgba(245,158,11,0.15)' : 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.1rem', color: isExpanded ? '#f59e0b' : 'var(--secondary)', flexShrink: 0, transition: 'all 0.2s' }}>
+                  {getInitial(emp.name)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: '0 0 0.15rem', fontWeight: '800', color: 'var(--secondary)' }}>{emp.name}</p>
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: '700' }}>{emp.category} • {emp.employee_no}</p>
+                </div>
+                <Wallet style={{ width: '20px', height: '20px', color: isExpanded ? '#f59e0b' : '#cbd5e1', transition: 'color 0.2s', flexShrink: 0 }} />
+              </div>
+
+              {/* Inline advance entry — only when expanded */}
+              {isExpanded && (
+                <div style={{ borderTop: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {/* Amount */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <IndianRupee style={{ width: '16px', height: '16px', color: '#f59e0b', flexShrink: 0 }} />
+                    <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.85rem', flex: 1 }}>Advance Amount (₹)</span>
+                    <input
+                      type='number'
+                      placeholder='0'
+                      value={advForm.amount}
+                      onChange={e => setAdvForm(f => ({ ...f, amount: e.target.value }))}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: '110px', border: '1.5px solid #f59e0b', borderRadius: '0.65rem', padding: '0.4rem 0.6rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--secondary)', outline: 'none', textAlign: 'right' }}
+                    />
+                  </div>
+
+                  {/* Reason */}
+                  {/* <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Save style={{ width: '15px', height: '15px', color: '#f59e0b', flexShrink: 0 }} />
+                    <input
+                      type='text'
+                      placeholder='Reason (optional)'
+                      value={advForm.reason}
+                      onChange={e => setAdvForm(f => ({ ...f, reason: e.target.value }))}
+                      onClick={e => e.stopPropagation()}
+                      style={{ flex: 1, border: '1.5px solid var(--border)', borderRadius: '0.65rem', padding: '0.4rem 0.65rem', fontSize: '0.82rem', fontWeight: '600', color: 'var(--secondary)', outline: 'none' }}
+                    />
+                  </div> */}
+
+                  {/* Save button */}
+                  <button
+                    onClick={e => { e.stopPropagation(); submitAdvance() }}
+                    disabled={!advForm.amount || advSubmitting}
+                    style={{ background: advForm.amount ? '#f59e0b' : '#e2e8f0', color: advForm.amount ? 'white' : '#94a3b8', border: 'none', borderRadius: '0.85rem', padding: '0.7rem', fontWeight: '900', fontSize: '0.88rem', cursor: advForm.amount ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', boxShadow: advForm.amount ? '0 4px 12px rgba(245,158,11,0.25)' : 'none', transition: 'all 0.2s' }}
+                  >
+                    {advSubmitting ? <Loader2 className='w-4 h-4 animate-spin' /> : <Wallet style={{ width: '16px', height: '16px' }} />}
+                    {advSubmitting ? 'Saving...' : `Give ₹${advForm.amount || '0'} to ${emp.name.split(' ')[0]}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Advance History */}
+        <div style={{ background: 'white', borderRadius: '1.5rem', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)' }}>Advance History</p>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700' }}>{advances.length} records</span>
+          </div>
+
+          {advLoading ? (
+            <div style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className='w-6 h-6 animate-spin' style={{ color: '#f59e0b', margin: '0 auto' }} /></div>
+          ) : advances.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>No advance records for this site yet.</div>
+          ) : advances.map(adv => (
+            <div key={adv.id} style={{ display: 'flex', alignItems: 'center', padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', gap: '0.85rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '0.85rem', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <IndianRupee style={{ width: '18px', height: '18px', color: '#f59e0b' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: '0 0 0.1rem', fontWeight: '800', color: 'var(--secondary)', fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{adv.employee_name || adv.employee_no}</p>
+                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+                  {adv.date ? adv.date.split('-').reverse().join('-') : ''}{adv.reason ? ` • ${adv.reason}` : ''}
+                </p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ margin: 0, fontWeight: '900', color: '#f59e0b', fontSize: '1rem' }}>₹{fmtINR(adv.amount)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ height: '1rem' }} />
+      </div>
+    )
+  }
   return null
 }

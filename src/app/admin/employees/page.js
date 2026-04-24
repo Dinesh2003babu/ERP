@@ -19,7 +19,10 @@ import {
   IndianRupee,
   ArrowLeft,
   Briefcase,
-  IdCard
+  IdCard,
+  X,
+  Trash2,
+  RotateCcw
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -30,6 +33,7 @@ export default function EmployeesPage() {
 
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState([])
+  const [sites, setSites] = useState([])
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState('ALL')
 
@@ -43,6 +47,10 @@ export default function EmployeesPage() {
   const [empLoading, setEmpLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
+
+  // Add Employee State
+  const [showAddEmployee, setShowAddEmployee] = useState(false)
+  const [newEmployee, setNewEmployee] = useState({ employee_no: '', name: '', category: 'Labour', pay_rate: '', location: '', type: '', contact_no: '', aadhaar_no: '', status: 'active' })
 
   // Helper Functions
   const getToday = () => new Date().toISOString().split('T')[0]
@@ -60,12 +68,12 @@ export default function EmployeesPage() {
 
   const computeStats = (data, emp) => {
     if (!emp || !data) return { presentDays: 0, totalOT: 0, pct: 0, amount: 0 }
-    
+
     // Only count active/pending records
     const valid = data.filter(r => r.status === 'confirmed' || r.status === 'pending' || r.status === 'approved')
     const present = valid.filter(r => r.is_present)
     const totalOT = valid.reduce((sum, r) => sum + (r.ot_hours || 0), 0)
-    
+
     const rate = emp.pay_rate || 0
     const otRate = rate / 8
     const earned = (present.length * rate) + (totalOT * otRate)
@@ -73,15 +81,23 @@ export default function EmployeesPage() {
     const totalPossible = valid.length || 1
     const pct = Math.round((present.length / totalPossible) * 100)
 
-    return { 
-      presentDays: present.length, 
-      totalOT, 
-      pct, 
-      amount: Math.round(earned) 
+    return {
+      presentDays: present.length,
+      totalOT,
+      pct,
+      amount: Math.round(earned)
     }
   }
 
-  useEffect(() => { fetchEmployees() }, [])
+  useEffect(() => {
+    fetchEmployees()
+    fetchSites()
+  }, [])
+
+  async function fetchSites() {
+    const { data } = await supabase.from('sites').select('location, type')
+    if (data) setSites(data)
+  }
 
   async function fetchEmployees() {
     try {
@@ -96,6 +112,62 @@ export default function EmployeesPage() {
       console.error('Error fetching employees:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleAddEmployee(e) {
+    e.preventDefault()
+    if (!newEmployee.location || !newEmployee.type) {
+      alert("Please select a valid assigned site.")
+      return
+    }
+    try {
+      const { error } = await supabase.from('employees').insert([{
+        ...newEmployee,
+        pay_rate: parseFloat(newEmployee.pay_rate) || 0
+      }])
+      if (error) throw error
+      setShowAddEmployee(false)
+      setNewEmployee({ employee_no: '', name: '', category: 'Labour', pay_rate: '', location: '', type: '', contact_no: '', aadhaar_no: '', status: 'active' })
+      fetchEmployees()
+    } catch (err) {
+      alert('Error adding employee: ' + err.message)
+    }
+  }
+
+  async function handleDeleteEmployee(employee_no) {
+    if (!window.confirm("Are you sure you want to mark this employee as inactive?")) return;
+    try {
+      const { error } = await supabase.from('employees').update({ status: 'inactive' }).eq('employee_no', employee_no)
+      if (error) throw error
+      setView(VIEW_ROSTER)
+      fetchEmployees()
+    } catch (err) {
+      alert("Error deactivating employee: " + err.message)
+    }
+  }
+
+  async function handleRestoreEmployee(employee_no) {
+    if (!window.confirm("Are you sure you want to restore this employee to active status?")) return;
+    try {
+      const { error } = await supabase.from('employees').update({ status: 'active' }).eq('employee_no', employee_no)
+      if (error) throw error
+      setView(VIEW_ROSTER)
+      fetchEmployees()
+    } catch (err) {
+      alert("Error restoring employee: " + err.message)
+    }
+  }
+
+  async function handlePermanentDeleteEmployee(employee_no) {
+    if (!window.confirm("WARNING: Are you sure you want to PERMANENTLY delete this employee? This action cannot be undone.")) return;
+    try {
+      const { error } = await supabase.from('employees').delete().eq('employee_no', employee_no)
+      if (error) throw error
+      setView(VIEW_ROSTER)
+      fetchEmployees()
+    } catch (err) {
+      alert("Error permanently deleting employee: " + err.message)
     }
   }
 
@@ -133,6 +205,10 @@ export default function EmployeesPage() {
       emp.location.toLowerCase().includes(search.toLowerCase())
     if (activeFilter === 'ALL') return matchesSearch
     return matchesSearch && emp.status?.toUpperCase() === activeFilter
+  }).sort((a, b) => {
+    if (a.status === 'inactive' && b.status !== 'inactive') return 1;
+    if (a.status !== 'inactive' && b.status === 'inactive') return -1;
+    return 0;
   })
 
   if (loading) return (
@@ -162,7 +238,7 @@ export default function EmployeesPage() {
                 {filteredEmployees.length} EMPLOYEES FOUND
               </span>
             </div>
-            <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.25rem' }}>
+            <button onClick={() => setShowAddEmployee(true)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.25rem' }}>
               <Plus className="w-5 h-5" />
               <span style={{ fontWeight: '800', fontSize: '0.8rem' }}>ADD EMPLOYEE</span>
             </button>
@@ -210,13 +286,16 @@ export default function EmployeesPage() {
             <button
               key={emp.employee_no}
               onClick={() => handleViewProfile(emp)}
-              style={{ width: '100%', background: 'white', border: '1px solid var(--border)', borderRadius: '1.25rem', padding: '1.15rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', textAlign: 'left', boxShadow: 'var(--shadow)' }}
+              style={{ width: '100%', background: 'white', border: '1px solid var(--border)', borderRadius: '1.25rem', padding: '1.15rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', textAlign: 'left', boxShadow: 'var(--shadow)', opacity: emp.status === 'inactive' ? 0.6 : 1 }}
             >
               <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1rem', color: 'var(--secondary)', flexShrink: 0 }}>
                 {getInitial(emp.name)}
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ margin: '0 0 0.1rem', fontWeight: '900', color: 'var(--secondary)', fontSize: '1.05rem' }}>{emp.name}</p>
+                <p style={{ margin: '0 0 0.1rem', fontWeight: '900', color: 'var(--secondary)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {emp.name}
+                  {emp.status === 'inactive' && <span style={{ background: '#fee2e2', color: '#ef4444', padding: '0.1rem 0.4rem', borderRadius: '0.5rem', fontSize: '0.6rem', fontWeight: '900', letterSpacing: '0.05em' }}>INACTIVE</span>}
+                </p>
                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '800' }}>{emp.employee_no}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -228,6 +307,76 @@ export default function EmployeesPage() {
             </button>
           ))}
         </div>
+
+        {/* Add Employee Modal */}
+        {showAddEmployee && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: '1.25rem', width: '90%', maxWidth: '500px', padding: '2rem', boxShadow: 'var(--shadow-lg)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ margin: 0, color: 'var(--secondary)', fontWeight: '900', fontSize: '1.5rem' }}>Add New Employee</h2>
+                <button onClick={() => setShowAddEmployee(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem' }}>
+                  <X style={{ color: 'var(--text-muted)' }} />
+                </button>
+              </div>
+              <form onSubmit={handleAddEmployee} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Employee ID</p>
+                    <input required placeholder="e.g. EMP-001" value={newEmployee.employee_no} onChange={e => setNewEmployee({ ...newEmployee, employee_no: e.target.value })} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Full Name</p>
+                    <input required placeholder="Enter name" value={newEmployee.name} onChange={e => setNewEmployee({ ...newEmployee, name: e.target.value })} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Designation</p>
+                    <select value={newEmployee.category} onChange={e => setNewEmployee({ ...newEmployee, category: e.target.value })} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem', background: 'white' }}>
+                      <option value="Labour">Labour</option>
+                      <option value="Mason">Mason</option>
+                      <option value="Carpenter">Carpenter</option>
+                      <option value="Foreman">Foreman</option>
+                      <option value="Operator">Operator</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Pay Rate (₹/day)</p>
+                    <input required type="number" placeholder="0.00" value={newEmployee.pay_rate} onChange={e => setNewEmployee({ ...newEmployee, pay_rate: e.target.value })} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Assigned Location / Site</p>
+                  <select required value={`${newEmployee.location}|${newEmployee.type}`} onChange={e => {
+                    if (e.target.value === '|') { setNewEmployee({ ...newEmployee, location: '', type: '' }); return; }
+                    const [loc, typ] = e.target.value.split('|');
+                    setNewEmployee({ ...newEmployee, location: loc, type: typ });
+                  }} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem', background: 'white' }}>
+                    <option value="|">-- Select an active site --</option>
+                    {sites.map(s => <option key={`${s.location}|${s.type}`} value={`${s.location}|${s.type}`}>{s.location} ({s.type})</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Contact No</p>
+                    <input placeholder="Enter phone" value={newEmployee.contact_no} onChange={e => setNewEmployee({ ...newEmployee, contact_no: e.target.value })} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Aadhaar No</p>
+                    <input placeholder="Enter Aadhaar" value={newEmployee.aadhaar_no} onChange={e => setNewEmployee({ ...newEmployee, aadhaar_no: e.target.value })} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ padding: '1rem', marginTop: '0.5rem', borderRadius: '0.75rem', fontWeight: '900', fontSize: '1rem', letterSpacing: '0.05em', boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)' }}>
+                  SAVE EMPLOYEE
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -248,12 +397,26 @@ export default function EmployeesPage() {
           >
             <ArrowLeft style={{ width: '18px', height: '18px', color: 'var(--secondary)' }} />
           </button>
-          <div>
+          <div style={{ flex: 1 }}>
             <h2 style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.25rem' }}>{selectedEmployee.name}</h2>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: '700', textTransform: 'uppercase' }}>
               {selectedEmployee.category} • {selectedEmployee.employee_no}
             </p>
           </div>
+          {selectedEmployee.status === 'inactive' ? (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button title="Restore to Active" onClick={() => handleRestoreEmployee(selectedEmployee.employee_no)} style={{ background: '#dcfce7', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#16a34a' }}>
+                <RotateCcw style={{ width: '18px', height: '18px' }} />
+              </button>
+              <button title="Permanently Delete" onClick={() => handlePermanentDeleteEmployee(selectedEmployee.employee_no)} style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#ef4444' }}>
+                <Trash2 style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+          ) : (
+            <button title="Move to Inactive" onClick={() => handleDeleteEmployee(selectedEmployee.employee_no)} style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#ef4444' }}>
+              <Trash2 style={{ width: '18px', height: '18px' }} />
+            </button>
+          )}
         </div>
 
         {/* 1. Personal Identity Dropdown */}

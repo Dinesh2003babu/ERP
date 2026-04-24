@@ -20,7 +20,10 @@ import {
   TrendingUp,
   IndianRupee,
   IdCard,
-  FileText
+  FileText,
+  X,
+  Trash2,
+  RotateCcw
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -31,6 +34,7 @@ export default function EngineersMasterPage() {
 
   const [loading, setLoading] = useState(true)
   const [engineers, setEngineers] = useState([])
+  const [sites, setSites] = useState([])
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState('ALL')
 
@@ -44,6 +48,10 @@ export default function EngineersMasterPage() {
   const [subLoading, setSubLoading] = useState(false)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
+
+  // Add Engineer State
+  const [showAddEngineer, setShowAddEngineer] = useState(false)
+  const [newEngineer, setNewEngineer] = useState({ engineer_no: '', name: '', category: 'Engineer', pay_rate: '', location: '', type: '', contact_no: '', aadhaar_no: '', status: 'active' })
 
   // Helper Functions
   const getToday = () => new Date().toISOString().split('T')[0]
@@ -59,7 +67,15 @@ export default function EngineersMasterPage() {
     }
   }
 
-  useEffect(() => { fetchEngineers() }, [])
+  useEffect(() => {
+    fetchEngineers()
+    fetchSites()
+  }, [])
+
+  async function fetchSites() {
+    const { data } = await supabase.from('sites').select('location, type')
+    if (data) setSites(data)
+  }
 
   async function fetchEngineers() {
     try {
@@ -77,6 +93,62 @@ export default function EngineersMasterPage() {
     }
   }
 
+  async function handleAddEngineer(e) {
+    e.preventDefault()
+    if (!newEngineer.location || !newEngineer.type) {
+      alert("Please select a valid assigned site.")
+      return
+    }
+    try {
+      const { error } = await supabase.from('engineers').insert([{
+        ...newEngineer,
+        pay_rate: parseFloat(newEngineer.pay_rate) || 0
+      }])
+      if (error) throw error
+      setShowAddEngineer(false)
+      setNewEngineer({ engineer_no: '', name: '', category: 'Engineer', pay_rate: '', location: '', type: '', contact_no: '', aadhaar_no: '', status: 'active' })
+      fetchEngineers()
+    } catch (err) {
+      alert('Error adding engineer: ' + err.message)
+    }
+  }
+
+  async function handleDeleteEngineer(engineer_no) {
+    if (!window.confirm("Are you sure you want to mark this engineer as inactive?")) return;
+    try {
+      const { error } = await supabase.from('engineers').update({ status: 'inactive' }).eq('engineer_no', engineer_no)
+      if (error) throw error
+      setView(VIEW_ROSTER)
+      fetchEngineers()
+    } catch (err) {
+      alert("Error deactivating engineer: " + err.message)
+    }
+  }
+
+  async function handleRestoreEngineer(engineer_no) {
+    if (!window.confirm("Are you sure you want to restore this engineer to active status?")) return;
+    try {
+      const { error } = await supabase.from('engineers').update({ status: 'active' }).eq('engineer_no', engineer_no)
+      if (error) throw error
+      setView(VIEW_ROSTER)
+      fetchEngineers()
+    } catch (err) {
+      alert("Error restoring engineer: " + err.message)
+    }
+  }
+
+  async function handlePermanentDeleteEngineer(engineer_no) {
+    if (!window.confirm("WARNING: Are you sure you want to PERMANENTLY delete this engineer? This action cannot be undone.")) return;
+    try {
+      const { error } = await supabase.from('engineers').delete().eq('engineer_no', engineer_no)
+      if (error) throw error
+      setView(VIEW_ROSTER)
+      fetchEngineers()
+    } catch (err) {
+      alert("Error permanently deleting engineer: " + err.message)
+    }
+  }
+
   async function handleViewProfile(eng) {
     setSelectedEngineer(eng)
     setView(VIEW_PROFILE)
@@ -88,14 +160,14 @@ export default function EngineersMasterPage() {
     if (!eng) return
     try {
       setSubLoading(true)
-      
+
       // 1. Resolve Engineer's Profile ID to track their submissions
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
         .eq('username', eng.engineer_no)
         .single()
-      
+
       if (!profile) {
         setSubmissions([])
         return
@@ -107,7 +179,7 @@ export default function EngineersMasterPage() {
         .select('id, date, location, type, status')
         .eq('marked_by', profile.id)
         .order('date', { ascending: false })
-      
+
       if (dateFrom) query = query.gte('date', dateFrom)
       query = query.lte('date', dateTo)
 
@@ -144,6 +216,10 @@ export default function EngineersMasterPage() {
       eng.location.toLowerCase().includes(search.toLowerCase())
     if (activeFilter === 'ALL') return matchesSearch
     return matchesSearch && eng.status?.toUpperCase() === activeFilter
+  }).sort((a, b) => {
+    if (a.status === 'inactive' && b.status !== 'inactive') return 1;
+    if (a.status !== 'inactive' && b.status === 'inactive') return -1;
+    return 0;
   })
 
   if (loading) return (
@@ -173,7 +249,7 @@ export default function EngineersMasterPage() {
                 {filteredEngineers.length} ENGINEERS FOUND
               </span>
             </div>
-            <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.25rem', background: 'var(--reports-indigo)', border: 'none' }}>
+            <button onClick={() => setShowAddEngineer(true)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.25rem', background: 'var(--reports-indigo)', border: 'none' }}>
               <Plus className="w-5 h-5" />
               <span style={{ fontWeight: '800', fontSize: '0.8rem' }}>ADD ENGINEER</span>
             </button>
@@ -221,13 +297,16 @@ export default function EngineersMasterPage() {
             <button
               key={eng.engineer_no}
               onClick={() => handleViewProfile(eng)}
-              style={{ width: '100%', background: 'white', border: '1px solid var(--border)', borderRadius: '1.25rem', padding: '1.15rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', textAlign: 'left', boxShadow: 'var(--shadow)' }}
+              style={{ width: '100%', background: 'white', border: '1px solid var(--border)', borderRadius: '1.25rem', padding: '1.15rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', textAlign: 'left', boxShadow: 'var(--shadow)', opacity: eng.status === 'inactive' ? 0.6 : 1 }}
             >
               <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'rgba(99,102,241,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1rem', color: 'var(--reports-indigo)', flexShrink: 0 }}>
                 {getInitial(eng.name)}
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ margin: '0 0 0.1rem', fontWeight: '900', color: 'var(--secondary)', fontSize: '1.05rem' }}>{eng.name}</p>
+                <p style={{ margin: '0 0 0.1rem', fontWeight: '900', color: 'var(--secondary)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {eng.name}
+                  {eng.status === 'inactive' && <span style={{ background: '#fee2e2', color: '#ef4444', padding: '0.1rem 0.4rem', borderRadius: '0.5rem', fontSize: '0.6rem', fontWeight: '900', letterSpacing: '0.05em' }}>INACTIVE</span>}
+                </p>
                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '800' }}>{eng.engineer_no}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -239,6 +318,70 @@ export default function EngineersMasterPage() {
             </button>
           ))}
         </div>
+
+        {/* Add Engineer Modal */}
+        {showAddEngineer && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ background: 'white', borderRadius: '1.5rem', width: '100%', maxWidth: '500px', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ margin: 0, color: 'var(--secondary)', fontWeight: '900', fontSize: '1.5rem' }}>Add New Engineer</h2>
+                <button onClick={() => setShowAddEngineer(false)} style={{ background: '#f1f5f9', border: 'none', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', display: 'flex' }}>
+                  <X style={{ color: 'var(--text-muted)', width: '20px', height: '20px' }} />
+                </button>
+              </div>
+              <form onSubmit={handleAddEngineer} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Official ID</p>
+                    <input required placeholder="e.g. ENG-001" value={newEngineer.engineer_no} onChange={e => setNewEngineer({ ...newEngineer, engineer_no: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Full Name</p>
+                    <input required placeholder="Enter name" value={newEngineer.name} onChange={e => setNewEngineer({ ...newEngineer, name: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Designation</p>
+                    <input required placeholder="e.g. Site Engineer" value={newEngineer.category} onChange={e => setNewEngineer({ ...newEngineer, category: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Fixed Salary (₹/mo)</p>
+                    <input required type="number" placeholder="0.00" value={newEngineer.pay_rate} onChange={e => setNewEngineer({ ...newEngineer, pay_rate: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Assigned Site</p>
+                  <select required value={`${newEngineer.location}|${newEngineer.type}`} onChange={e => {
+                    if (e.target.value === '|') { setNewEngineer({ ...newEngineer, location: '', type: '' }); return; }
+                    const [loc, typ] = e.target.value.split('|');
+                    setNewEngineer({ ...newEngineer, location: loc, type: typ });
+                  }} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem', background: 'white' }}>
+                    <option value="|">-- Select an active site --</option>
+                    {sites.map(s => <option key={`${s.location}|${s.type}`} value={`${s.location}|${s.type}`}>{s.location} ({s.type})</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Contact Number</p>
+                    <input placeholder="Enter phone" value={newEngineer.contact_no} onChange={e => setNewEngineer({ ...newEngineer, contact_no: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Aadhaar No</p>
+                    <input placeholder="Enter Aadhaar" value={newEngineer.aadhaar_no} onChange={e => setNewEngineer({ ...newEngineer, aadhaar_no: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ padding: '1.15rem', marginTop: '0.5rem', borderRadius: '0.85rem', fontWeight: '900', fontSize: '1rem', letterSpacing: '0.05em', background: 'var(--reports-indigo)', border: 'none', color: 'white', cursor: 'pointer' }}>
+                  SAVE ENGINEER
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -264,6 +407,20 @@ export default function EngineersMasterPage() {
               {selectedEngineer.category} • {selectedEngineer.engineer_no}
             </p>
           </div>
+          {selectedEngineer.status === 'inactive' ? (
+            <div style={{ display: 'flex', gap: '0.5rem', marginRight: '0.5rem' }}>
+              <button title="Restore to Active" onClick={() => handleRestoreEngineer(selectedEngineer.engineer_no)} style={{ background: '#dcfce7', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#16a34a' }}>
+                <RotateCcw style={{ width: '18px', height: '18px' }} />
+              </button>
+              <button title="Permanently Delete" onClick={() => handlePermanentDeleteEngineer(selectedEngineer.engineer_no)} style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#ef4444' }}>
+                <Trash2 style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+          ) : (
+            <button title="Move to Inactive" onClick={() => handleDeleteEngineer(selectedEngineer.engineer_no)} style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#ef4444', marginRight: '0.5rem' }}>
+              <Trash2 style={{ width: '18px', height: '18px' }} />
+            </button>
+          )}
           <span className={`status-pill ${selectedEngineer.status === 'active' ? 'active' : 'inactive'}`} style={{ fontSize: '0.62rem' }}>
             {selectedEngineer.status}
           </span>

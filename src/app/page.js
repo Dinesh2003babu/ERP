@@ -45,7 +45,7 @@ const SplashScreen = () => (
         boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.2)'
       }}
     >
-      <HardHat style={{ width: '80px', height: '80px', color: 'var(--brand)' }} />
+      <img src="/favicon.ico" alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
     </div>
 
     {/* Brand Text */}

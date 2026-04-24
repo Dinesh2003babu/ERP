@@ -34,10 +34,10 @@ export default function AdminDashboard() {
 
       // Consolidate all fetches into one high-speed execution block
       const [
-        sitesRes, 
-        empRes, 
-        attRes, 
-        profRes, 
+        sitesRes,
+        empRes,
+        attRes,
+        profRes,
         engRes
       ] = await Promise.all([
         supabase.from('sites').select('*', { count: 'exact', head: true }).eq('status', 'active'),
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
           // Resolve Engineer Name using our robust 2-stage lookup
           const uName = profIdMap[row.marked_by] || row.marked_by || '-'
           const fName = engNameMap[uName.toLowerCase()] || uName || 'Site Engineer'
-          
+
           acc[key] = {
             location: row.location,
             type: row.type,

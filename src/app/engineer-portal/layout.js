@@ -13,11 +13,11 @@ export default function EngineerLayout({ children }) {
           padding: '0.75rem 1.5rem',
           background: 'var(--secondary)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ background: 'var(--brand)', padding: '0.5rem', borderRadius: '0.5rem' }}>
-              <HardHat style={{ width: '18px', height: '18px', color: 'white' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ background: 'white', padding: '0.35rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src="/favicon.ico" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
             </div>
-            <span style={{ fontWeight: '1000', fontSize: '1.1rem', color: 'white', letterSpacing: '-0.02em' }}>Engineer Portal</span>
+            <span style={{ fontWeight: '1000', fontSize: '1.15rem', color: 'white', letterSpacing: '-0.02em' }}>Engineer Portal</span>
           </div>
           <button
             onClick={() => {

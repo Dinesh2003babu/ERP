@@ -32,8 +32,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
       {/* Brand Logo & Close Button */}
       <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-dark))', padding: '0.6rem', borderRadius: '0.9rem', boxShadow: '0 4px 12px rgba(14,165,233,0.35)' }}>
-            <HardHat style={{ width: '22px', height: '22px', color: 'white' }} />
+          <div style={{ background: 'white', padding: '0.4rem', borderRadius: '0.9rem', boxShadow: '0 4px 12px rgba(14,165,233,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src="/favicon.ico" alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           </div>
           <span style={{ fontWeight: '900', fontSize: '1.3rem', letterSpacing: '-0.03em', color: 'var(--secondary)' }}>CIVIL ERP</span>
         </div>
@@ -56,7 +56,14 @@ export default function Sidebar({ isOpen, setIsOpen }) {
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => setIsOpen(false)}
+              onClick={(e) => {
+                setIsOpen(false)
+                // Force a true page reload if clicking the active tab to clear all deep React state
+                if (isActive) {
+                  e.preventDefault()
+                  window.location.reload()
+                }
+              }}
               className="btn"
               style={{
                 display: 'flex',
