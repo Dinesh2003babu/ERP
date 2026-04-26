@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   HardHat,
@@ -15,7 +16,9 @@ import {
   ShieldCheck,
   Building2,
   Users2,
-  Calendar
+  Calendar,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 
 
@@ -45,7 +48,7 @@ const SplashScreen = () => (
         boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.2)'
       }}
     >
-      <img src="/favicon.ico" alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+      <img src="/Logo.png" alt="Logo" style={{ width: '8rem', height: '8rem', objectFit: 'contain' }} />
     </div>
 
     {/* Brand Text */}
@@ -284,65 +287,6 @@ const HomeDashboard = ({ onEnterPortal }) => {
           gap: '2rem'
         }}>
 
-          {/* Card: Site Engineer */}
-          <div
-            onClick={() => onEnterPortal()}
-            className="stat-card role-card-hover"
-            style={{
-              cursor: 'pointer',
-              padding: '3rem',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '1.5rem',
-              background: 'white',
-              border: '1px solid var(--border)',
-              borderRadius: '2.5rem'
-            }}
-          >
-            <div style={{
-              background: 'var(--primary)',
-              color: 'var(--secondary)',
-              padding: '1rem',
-              borderRadius: '1.25rem'
-            }}>
-              <ClipboardCheck style={{ width: '32px', height: '32px' }} />
-            </div>
-
-            <div>
-              <h3 style={{
-                textAlign: 'center',
-                fontSize: '1.75rem',
-                fontWeight: '900',
-                margin: '0 0 0.75rem 0',
-                color: 'var(--secondary)'
-              }}>
-                Site Engineer
-              </h3>
-              {/* <p style={{
-                color: 'var(--text-muted)',
-                fontSize: '0.95rem',
-                lineHeight: 1.6,
-                margin: 0,
-                fontWeight: '500'
-              }}>
-                Site-level execution: mark daily attendance, track worker OT hours,
-                and sync progress with the head office.
-              </p> */}
-            </div>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              color: 'var(--primary)',
-              fontWeight: '800',
-              marginTop: '1rem'
-            }}>
-              <span>GO TO PORTAL</span>
-              <ArrowRight className="w-5 h-5" />
-            </div>
-          </div>
-
           {/* Card: Administrator */}
           <div
             onClick={() => onEnterPortal()}
@@ -364,6 +308,7 @@ const HomeDashboard = ({ onEnterPortal }) => {
               padding: '1rem',
               borderRadius: '1.25rem'
             }}>
+              {/* <ClipboardCheck style={{ width: '32px', height: '32px' }} /> */}
               <LayoutDashboard style={{ width: '2rem', height: '2rem' }} />
             </div>
 
@@ -375,7 +320,7 @@ const HomeDashboard = ({ onEnterPortal }) => {
                 margin: '0 0 0.75rem 0',
                 color: 'var(--secondary)'
               }}>
-                Admin
+                Access Portal
               </h3>
               {/* <p style={{
                 color: 'var(--text-muted)',
@@ -397,7 +342,7 @@ const HomeDashboard = ({ onEnterPortal }) => {
               fontWeight: '800',
               // marginTop: '1rem'
             }}>
-              <span>ENTER HUB</span>
+              <span>Log in</span>
               <ArrowRight className="w-5 h-5" />
             </div>
           </div>
@@ -426,10 +371,12 @@ const HomeDashboard = ({ onEnterPortal }) => {
 // 🔐 SUB-COMPONENT: LOGIN PAGE
 // ─────────────────────────────────────────────────────────
 const LoginForm = ({ onBack }) => {
+  const router = useRouter()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -455,9 +402,9 @@ const LoginForm = ({ onBack }) => {
 
       // Redirect based on role
       if (data.role === 'admin') {
-        window.location.href = '/admin'
+        router.push('/admin/')
       } else {
-        window.location.href = '/engineer-portal'
+        router.push('/engineer-portal/')
       }
 
     } catch (err) {
@@ -619,14 +566,14 @@ const LoginForm = ({ onBack }) => {
                   height: '18px'
                 }} />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                   style={{
                     width: '100%',
-                    padding: '1.1rem 1rem 1.1rem 3.5rem',
+                    padding: '1.1rem 3.5rem 1.1rem 3.5rem',
                     borderRadius: '1.25rem',
                     background: '#f8fafc',
                     border: '1.5px solid var(--border)',
@@ -634,6 +581,30 @@ const LoginForm = ({ onBack }) => {
                     outline: 'none'
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '1.25rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0.25rem'
+                  }}
+                >
+                  {showPassword ? (
+                    <EyeOff style={{ width: '20px', height: '20px' }} />
+                  ) : (
+                    <Eye style={{ width: '20px', height: '20px' }} />
+                  )}
+                </button>
               </div>
             </div>
 

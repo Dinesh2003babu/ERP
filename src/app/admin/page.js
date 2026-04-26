@@ -22,6 +22,7 @@ export default function AdminDashboard() {
     { name: 'Weekly Cost', value: '₹0', icon: TrendingUp, color: 'var(--attendance-green)', bg: 'rgba(16,185,129,0.12)', sub: 'Estimated Exp' },
   ])
   const [pendingAttendance, setPendingAttendance] = useState([])
+  const [dashboardError, setDashboardError] = useState(null)
 
   useEffect(() => {
     setMounted(true)
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
   async function fetchDashboardData() {
     try {
       setLoading(true)
+      setDashboardError(null)
 
       // Consolidate all fetches into one high-speed execution block
       const [
@@ -95,15 +97,50 @@ export default function AdminDashboard() {
 
     } catch (err) {
       console.error('Critical Dashboard Fetch Error:', err?.message || err)
+      setDashboardError(err?.message || 'Failed to connect to database. Please check your internet.')
     } finally {
       setLoading(false)
     }
   }
 
+  if (dashboardError) {
+    return (
+      <div style={{ maxWidth: '500px', margin: '4rem auto', textAlign: 'center', padding: '3rem', background: 'white', borderRadius: '2rem', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+        <AlertCircle style={{ width: '48px', height: '48px', color: '#f43f5e', margin: '0 auto 1rem' }} />
+        <h2 style={{ fontWeight: '900', color: 'var(--secondary)' }}>Connection Error</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>{dashboardError}</p>
+        <button 
+          onClick={() => fetchDashboardData()} 
+          className="btn btn-primary" 
+          style={{ marginTop: '2rem', width: '100%' }}
+        >
+          Retry Connection
+        </button>
+      </div>
+    )
+  }
+
   if (!mounted || loading) {
     return (
-      <div style={{ height: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader2 className="w-10 h-10 animate-spin" style={{ color: 'var(--primary)' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div className="skeleton" style={{ width: '220px', height: '2.5rem', marginBottom: '0.75rem' }}></div>
+            <div className="skeleton" style={{ width: '320px', height: '1.25rem' }}></div>
+          </div>
+          <div className="skeleton" style={{ width: '120px', height: '1rem' }}></div>
+        </div>
+
+        <div className="stats-grid">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="skeleton" style={{ height: '120px', borderRadius: '1.25rem' }}></div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+          <div className="skeleton" style={{ gridColumn: 'span 2', height: '25rem', borderRadius: '1.5rem' }}></div>
+          <div className="skeleton" style={{ height: '25rem', borderRadius: '1.5rem' }}></div>
+        </div>
       </div>
     )
   }
@@ -131,8 +168,8 @@ export default function AdminDashboard() {
       {/* Stats Grid */}
       <div className="stats-grid">
         {stats.map((stat) => (
-          <div key={stat.name} style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1rem', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
+          <div key={stat.name} style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1.25rem', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center', textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.68rem', fontWeight: '900', textTransform: 'uppercase' }}>
               <stat.icon style={{ width: '16px', height: '16px', color: stat.color }} />
               {stat.name}
             </div>
@@ -189,8 +226,16 @@ export default function AdminDashboard() {
                 ))}
                 {pendingAttendance.length === 0 && (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      No pending attendance submissions.
+                    <td colSpan="6" style={{ padding: '4rem 2rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', textAlign: 'center' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Clock style={{ width: '24px', height: '24px', color: 'var(--text-muted)', opacity: 0.5 }} />
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1rem' }}>No Pending Attendance</p>
+                          <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600' }}>Everything is caught up! No engineer submissions are waiting for approval.</p>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 )}

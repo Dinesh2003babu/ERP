@@ -19,8 +19,10 @@ export default function ReportsPage() {
   const [reportRows, setReportRows] = useState([])
   const [summary, setSummary] = useState({
     totalSalary: 0,
-    avgCost: 0,
-    otExpenses: 0
+    totalManDays: 0,
+    otExpenses: 0,
+    highestLocation: 'N/A',
+    highestType: 'PROJECT'
   })
 
   useEffect(() => {
@@ -31,36 +33,44 @@ export default function ReportsPage() {
     try {
       setLoading(true)
       
-      // 1. Fetch raw attendance records (confirmed/approved ones)
-      const { data: attData, error: attError } = await supabase
+      // 1. Calculate Date Filter
+      let query = supabase
         .from('attendance')
         .select('*')
-        .in('status', ['confirmed', 'approved']) // Include both for safety
+        .in('status', ['confirmed', 'approved'])
 
+      if (period === 'weekly') {
+        const d = new Date()
+        d.setDate(d.getDate() - 7)
+        query = query.gte('date', d.toISOString().split('T')[0])
+      } else if (period === 'monthly') {
+        const d = new Date()
+        d.setMonth(d.getMonth() - 1)
+        query = query.gte('date', d.toISOString().split('T')[0])
+      }
+
+      const { data: attData, error: attError } = await query
       if (attError) throw attError
 
-      // 2. Fetch all workers/engineers to resolve pay rates
+      // 2. Fetch pay rates
       const [empRes, engRes] = await Promise.all([
         supabase.from('employees').select('employee_no, pay_rate'),
         supabase.from('engineers').select('engineer_no, pay_rate')
       ])
 
-      // Build pay rate lookup map
       const rateMap = {}
       ;(empRes.data || []).forEach(e => { rateMap[e.employee_no] = e.pay_rate })
       ;(engRes.data || []).forEach(e => { rateMap[e.engineer_no] = e.pay_rate })
 
-      // Aggregate data by location + type
+      // 3. Aggregate
+      let totalSalary = 0
+      let totalOT = 0
+      let totalManDays = 0
+
       const aggregated = (attData || []).reduce((acc, row) => {
         const key = `${row.location}-${row.type}`
         if (!acc[key]) {
-          acc[key] = {
-            location: row.location,
-            type: row.type,
-            labour: new Set(),
-            ot: 0,
-            cost: 0
-          }
+          acc[key] = { location: row.location, type: row.type, labour: new Set(), ot: 0, cost: 0 }
         }
         
         const rate = rateMap[row.employee_no] || 0
@@ -71,8 +81,13 @@ export default function ReportsPage() {
         
         if (row.is_present) {
           acc[key].cost += rate
+          totalSalary += rate
+          totalManDays += 1
         }
-        acc[key].cost += (row.ot_hours || 0) * otRate
+        const otCost = (row.ot_hours || 0) * otRate
+        acc[key].cost += otCost
+        totalSalary += otCost
+        totalOT += otCost
         
         return acc
       }, {})
@@ -80,23 +95,18 @@ export default function ReportsPage() {
       const rows = Object.values(aggregated).map(r => ({
         ...r,
         labour: r.labour.size,
+        costNum: r.cost,
         cost: Math.round(r.cost).toLocaleString('en-IN')
-      }))
+      })).sort((a, b) => b.costNum - a.costNum)
 
       setReportRows(rows)
 
-      // Calculate Summary
-      const total = Object.values(aggregated).reduce((sum, r) => sum + r.cost, 0)
-      const totalOT = (attData || []).reduce((sum, row) => {
-        const rate = rateMap[row.employee_no] || 0
-        const otRate = (rate / 8) * 1.5
-        return sum + ((row.ot_hours || 0) * otRate)
-      }, 0)
-
       setSummary({
-        totalSalary: total,
-        avgCost: rows.length > 0 ? total / rows.length : 0,
-        otExpenses: totalOT
+        totalSalary: totalSalary,
+        totalManDays: totalManDays,
+        otExpenses: totalOT,
+        highestLocation: rows[0]?.location || 'N/A',
+        highestType: rows[0]?.type || 'N/A'
       })
 
     } catch (err) {
@@ -130,27 +140,36 @@ export default function ReportsPage() {
             <p style={{ color: 'var(--text-muted)', marginTop: '0.25rem', fontSize: '0.85rem' }}>Site-wise labour cost tracking & financial analysis.</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.25rem', background: 'white', padding: '0.35rem', borderRadius: '1rem', border: '1px solid var(--border)', width: 'auto' }}>
-          {['weekly', 'monthly', 'all'].map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="btn"
-              style={{
-                padding: '0.5rem 0.85rem',
-                fontSize: '0.65rem',
-                textTransform: 'uppercase',
-                background: period === p ? 'var(--reports-indigo)' : 'transparent',
-                color: period === p ? 'white' : 'var(--text-muted)',
-                borderRadius: '0.75rem',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: '900'
-              }}
-            >
-              {p}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.25rem', background: 'white', padding: '0.35rem', borderRadius: '1rem', border: '1px solid var(--border)', width: 'auto' }}>
+            {['weekly', 'monthly', 'all'].map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className="btn"
+                style={{
+                  padding: '0.5rem 0.85rem',
+                  fontSize: '0.65rem',
+                  textTransform: 'uppercase',
+                  background: period === p ? 'var(--reports-indigo)' : 'transparent',
+                  color: period === p ? 'white' : 'var(--text-muted)',
+                  borderRadius: '0.75rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: '900'
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <button 
+            onClick={() => window.print()}
+            style={{ background: 'white', border: '1px solid var(--border)', padding: '0.6rem', borderRadius: '50%', cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
+            title="Print Report"
+          >
+            <Download className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -169,12 +188,12 @@ export default function ReportsPage() {
         </div>
         <div className="stat-card" style={{ borderTop: '4px solid var(--brand)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '140px' }}>
           <div>
-            <p className="stat-label">Avg. Cost Per Site</p>
-            <p className="stat-value">₹{(summary.avgCost / 1000).toFixed(1)}K</p>
+            <p className="stat-label">Total Man-Days</p>
+            <p className="stat-value">{summary.totalManDays}</p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
             <div style={{ background: 'var(--brand-light)', color: 'var(--brand-dark)', padding: '0.5rem', borderRadius: '0.75rem' }}>
-              <FileText className="w-5 h-5" />
+              <TrendingUp className="w-5 h-5" />
             </div>
           </div>
         </div>
@@ -193,14 +212,14 @@ export default function ReportsPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'rgba(255,255,255,0.7)', fontWeight: '800', fontSize: '0.65rem', textTransform: 'uppercase' }}>
               <MapPin className="w-3.5 h-3.5" />
-              <span>Highest Cost Location</span>
+              <span>Highest Cost Site</span>
             </div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: '900', margin: '0.5rem 0 0 0', color: 'white', lineHeight: '1.2' }}>
-              {reportRows.length > 0 ? reportRows.sort((a, b) => parseFloat(b.cost.replace(/,/g,'')) - parseFloat(a.cost.replace(/,/g,'')))[0]?.location : 'N/A'}
+              {summary.highestLocation}
             </h2>
           </div>
           <div style={{ alignSelf: 'flex-start', background: 'rgba(0,0,0,0.2)', color: 'white', fontSize: '0.6rem', fontWeight: '950', padding: '0.15rem 0.6rem', borderRadius: '0.4rem' }}>
-            {reportRows.length > 0 ? reportRows.sort((a, b) => parseFloat(b.cost.replace(/,/g,'')) - parseFloat(a.cost.replace(/,/g,'')))[0]?.type.toUpperCase() : 'PROJECT TYPE'}
+            {summary.highestType.toUpperCase()}
           </div>
         </div>
       </div>
@@ -231,8 +250,14 @@ export default function ReportsPage() {
               ))}
               {reportRows.length === 0 && (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    No confirmed attendance records found.
+                  <td colSpan="5" style={{ textAlign: 'center', padding: '5rem 2rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                      <FileText style={{ width: '44px', height: '44px', color: 'var(--text-muted)', opacity: 0.3 }} />
+                      <div>
+                        <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1rem' }}>No Records Found</p>
+                        <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600' }}>No confirmed attendance data available for the selected period.</p>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )}

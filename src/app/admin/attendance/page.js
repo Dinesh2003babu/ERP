@@ -22,7 +22,9 @@ import {
   HardHat,
   Printer,
   FileSpreadsheet,
-  Download
+  Download,
+  PlusCircle,
+  Users
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -33,6 +35,15 @@ export default function AttendanceApprovalPage() {
   const [selectedSubmission, setSelectedSubmission] = useState(null)
   const [statusFilter, setStatusFilter] = useState('pending') // 'pending' | 'approved'
   const [selectedSiteHistory, setSelectedSiteHistory] = useState(null) // {location, type}
+
+  // Manual Mark States
+  const [view, setView] = useState('QUEUE') // QUEUE | MANUAL_SITE | MANUAL_MARK
+  const [sites, setSites] = useState([])
+  const [manualSite, setManualSite] = useState(null)
+  const [manualEmployees, setManualEmployees] = useState([])
+  const [manualAttendance, setManualAttendance] = useState({}) // emp_no -> { present, ot }
+  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0])
+  const [savingManual, setSavingManual] = useState(false)
 
   // Custom Range Report States
   const [showMonthlyReport, setShowMonthlyReport] = useState(false)
@@ -127,7 +138,7 @@ export default function AttendanceApprovalPage() {
         let uName = profIdMap[validMarkedBy]
         if (!uName && validMarkedBy) {
           // If marked_by doesn't exist in profIdMap, maybe it's already the username
-          uName = profUserMap[validMarkedBy.toLowerCase()] || validMarkedBy
+          uName = profUserMap[validMarkedBy?.toLowerCase()] || validMarkedBy
         }
 
         const fName = engNameMap[uName?.toLowerCase()]
@@ -245,6 +256,94 @@ export default function AttendanceApprovalPage() {
     document.body.removeChild(link)
   }
 
+  // --- MANUAL MARK LOGIC ---
+  async function startManualMark() {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.from('sites').select('*').eq('status', 'active').order('location')
+      if (error) throw error
+      setSites(data || [])
+      setView('MANUAL_SITE')
+    } catch (err) {
+      alert('Failed to fetch sites')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleManualSiteSelect(site) {
+    setManualSite(site)
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('location', site.location)
+        .eq('type', site.type)
+        .eq('status', 'active')
+        .order('employee_no')
+      if (error) throw error
+
+      setManualEmployees(data || [])
+      // Initialize map: all present by default
+      const initialMap = {}
+      data.forEach(e => {
+        initialMap[e.employee_no] = { present: true, ot: 0 }
+      })
+      setManualAttendance(initialMap)
+      setView('MANUAL_MARK')
+    } catch (err) {
+      alert('Failed to fetch employees')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function toggleManualPresent(empNo) {
+    const current = manualAttendance[empNo] || { present: false, ot: 0 }
+    setManualAttendance({
+      ...manualAttendance,
+      [empNo]: { ...current, present: !current.present }
+    })
+  }
+
+  function changeManualOT(empNo, delta) {
+    const current = manualAttendance[empNo] || { present: false, ot: 0 }
+    const newVal = Math.max(0, (current.ot || 0) + delta)
+    setManualAttendance({
+      ...manualAttendance,
+      [empNo]: { ...current, ot: newVal }
+    })
+  }
+
+  async function saveManualAttendance() {
+    if (savingManual) return
+    setSavingManual(true)
+    try {
+      const rows = manualEmployees.map(emp => ({
+        employee_no: emp.employee_no,
+        location: manualSite.location,
+        type: manualSite.type,
+        date: manualDate,
+        is_present: manualAttendance[emp.employee_no]?.present || false,
+        ot_hours: manualAttendance[emp.employee_no]?.ot || 0,
+        status: 'approved', // Admin marks are auto-approved
+        marked_by: 'Admin Override'
+      }))
+
+      const { error } = await supabase.from('attendance').insert(rows)
+      if (error) throw error
+
+      alert('Attendance marked and approved successfully!')
+      setView('QUEUE')
+      fetchAttendance()
+    } catch (err) {
+      alert('Save failed: ' + err.message)
+    } finally {
+      setSavingManual(false)
+    }
+  }
+
   if (loading) return (
     <div style={{ height: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Loader2 className="w-10 h-10 animate-spin" style={{ color: 'var(--attendance-green)' }} />
@@ -254,7 +353,7 @@ export default function AttendanceApprovalPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Page Header */}
-      {!selectedSubmission && (
+      {!selectedSubmission && view === 'QUEUE' && (
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
           <h1 style={{ fontSize: '1.85rem', fontWeight: '900', color: 'var(--secondary)', margin: 0, display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
             <CheckCircle2 style={{ color: 'var(--attendance-green)', width: '32px', height: '32px' }} />
@@ -267,9 +366,19 @@ export default function AttendanceApprovalPage() {
       {/* Main Content Area */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-        {/* VIEW 1: SITE QUEUE (Visible only when nothing is selected) */}
-        {!selectedSubmission && (
+        {/* VIEW 1: SITE QUEUE */}
+        {!selectedSubmission && view === 'QUEUE' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+            {/* Manual Attendance Button Section */}
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '0.5rem 0' }}>
+              <button
+                onClick={startManualMark}
+                style={{ background: 'var(--secondary)', color: 'white', border: 'none', borderRadius: '1rem', padding: '0.8rem 1.75rem', fontWeight: '900', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 4px 12px rgba(30,41,59,0.2)' }}
+              >
+                <PlusCircle className="w-5 h-5" /> MANUAL ATTENDANCE MARK
+              </button>
+            </div>
 
             {/* Filter Toggle */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
@@ -351,44 +460,60 @@ export default function AttendanceApprovalPage() {
                 // APPROVED HISTORY VIEW
                 !selectedSiteHistory ? (
                   // Step 1: List Unique Sites
-                  Object.values(pendingList.reduce((acc, row) => {
-                    const key = `${row.location}-${row.type}`
-                    if (!acc[key]) {
-                      acc[key] = { location: row.location, type: row.type, totalRecords: 0 }
+                  (() => {
+                    const siteList = Object.values(pendingList.reduce((acc, row) => {
+                      const key = `${row.location}-${row.type}`
+                      if (!acc[key]) {
+                        acc[key] = { location: row.location, type: row.type, totalRecords: 0 }
+                      }
+                      acc[key].totalRecords += 1
+                      return acc
+                    }, {}));
+
+                    if (siteList.length === 0) {
+                      return (
+                        <div style={{ gridColumn: '1/-1', padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                          <MapPin style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5 }} />
+                          <div>
+                            <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.1rem' }}>No Approved History</p>
+                            <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>There are no approved attendance records available yet.</p>
+                          </div>
+                        </div>
+                      )
                     }
-                    acc[key].totalRecords += 1
-                    return acc
-                  }, {})).map((site) => (
-                    <button
-                      key={`${site.location}-${site.type}`}
-                      onClick={() => setSelectedSiteHistory(site)}
-                      style={{
-                        width: '100%',
-                        background: 'white',
-                        border: '1px solid var(--border)',
-                        borderRadius: '1.25rem',
-                        padding: '1.25rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.75rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        boxShadow: 'var(--shadow)',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                        <h3 style={{ fontWeight: '900', margin: 0, fontSize: '1.05rem', color: 'var(--secondary)' }}>{site.location}</h3>
-                        <span style={{ fontSize: '0.62rem', fontWeight: '950', background: 'var(--border)', color: 'var(--text-muted)', padding: '0.3rem 0.6rem', borderRadius: '0.6rem', textTransform: 'uppercase' }}>
-                          {site.type}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--attendance-green)', fontSize: '0.75rem', fontWeight: '850' }}>
-                        <CheckCircle2 className="w-4 h-4" />
-                        {site.totalRecords} Approved Records
-                      </div>
-                    </button>
-                  ))
+
+                    return siteList.map((site) => (
+                      <button
+                        key={`${site.location}-${site.type}`}
+                        onClick={() => setSelectedSiteHistory(site)}
+                        style={{
+                          width: '100%',
+                          background: 'white',
+                          border: '1px solid var(--border)',
+                          borderRadius: '1.25rem',
+                          padding: '1.25rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          boxShadow: 'var(--shadow)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                          <h3 style={{ fontWeight: '900', margin: 0, fontSize: '1.05rem', color: 'var(--secondary)' }}>{site.location}</h3>
+                          <span style={{ fontSize: '0.62rem', fontWeight: '950', background: 'var(--border)', color: 'var(--text-muted)', padding: '0.3rem 0.6rem', borderRadius: '0.6rem', textTransform: 'uppercase' }}>
+                            {site.type}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--attendance-green)', fontSize: '0.75rem', fontWeight: '850' }}>
+                          <CheckCircle2 className="w-4 h-4" />
+                          {site.totalRecords} Approved Records
+                        </div>
+                      </button>
+                    ))
+                  })()
                 ) : (
                   // Step 2: List Dates for the selected site
                   <>
@@ -508,6 +633,138 @@ export default function AttendanceApprovalPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* VIEW 3: MANUAL SITE SELECTION */}
+        {view === 'MANUAL_SITE' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <button
+              onClick={() => setView('QUEUE')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', color: 'var(--brand)', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', width: 'fit-content' }}
+            >
+              <ArrowLeft className="w-4 h-4" /> BACK TO APPROVALS
+            </button>
+            <div>
+              <h2 style={{ fontWeight: '900', margin: 0 }}>Select Site to Mark Attendance</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Choose a site to enter manual attendance logs.</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+              {sites.map((site, idx) => (
+                <button
+                  key={`${site.location}-${site.type}-${idx}`}
+                  onClick={() => handleManualSiteSelect(site)}
+                  style={{ background: 'white', border: '1px solid var(--border)', borderRadius: '1.5rem', padding: '1.5rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: '1rem' }}
+                >
+                  <div style={{ width: '48px', height: '48px', borderRadius: '1rem', background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MapPin style={{ color: 'var(--attendance-green)' }} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)' }}>{site.location}</h3>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>{site.type}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 4: MANUAL MARKING INTERFACE */}
+        {view === 'MANUAL_MARK' && manualSite && (
+          <div style={{ maxWidth: '30rem', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <button
+              onClick={() => setView('MANUAL_SITE')}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', color: 'var(--brand)', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', width: 'fit-content' }}
+            >
+              <ArrowLeft className="w-4 h-4" /> CHANGE SITE
+            </button>
+
+            {/* Date Card */}
+            <div style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: 'var(--shadow)' }}>
+              <CalendarIcon style={{ width: '1.25rem', height: '1.25rem', color: 'var(--brand)', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 0.1rem', fontSize: '0.65rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Attendance Date</p>
+                <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.1rem' }}>{manualSite.location}</h3>
+              </div>
+              <input
+                type="date"
+                value={manualDate}
+                onChange={e => setManualDate(e.target.value)}
+                style={{ padding: '0.5rem', borderRadius: '0.75rem', border: '1.5px solid var(--brand)', fontWeight: '800', fontSize: '0.85rem', outline: 'none' }}
+              />
+            </div>
+
+            {/* Stats Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ background: 'linear-gradient(135deg, var(--brand), var(--brand-dark))', borderRadius: '1.25rem', padding: '1.25rem', color: 'white', boxShadow: '0 8px 20px rgba(14,165,233,0.3)' }}>
+                <p style={{ margin: '0 0 0.25rem', fontSize: '0.75rem', fontWeight: '700', opacity: 0.85 }}>Present</p>
+                <p style={{ margin: 0, fontWeight: '900', fontSize: '1.85rem' }}>{Object.values(manualAttendance).filter(a => a.present).length}</p>
+              </div>
+              <div style={{ background: 'white', borderRadius: '1.25rem', padding: '1.25rem', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                <p style={{ margin: '0 0 0.25rem', fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)' }}>Workforce</p>
+                <p style={{ margin: 0, fontWeight: '900', fontSize: '1.85rem', color: 'var(--secondary)' }}>{manualEmployees.length}</p>
+              </div>
+            </div>
+
+            {/* Worker List header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.25rem 0' }}>
+              <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)', fontSize: '1rem' }}>Worker List</p>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>Tap to mark present</p>
+            </div>
+
+            {/* Workers */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {manualEmployees.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', background: 'rgba(0,0,0,0.02)', borderRadius: '1.5rem', border: '1px dashed var(--border)' }}>
+                  <Users style={{ width: '32px', height: '32px', color: 'var(--text-muted)', margin: '0 auto 0.5rem' }} />
+                  <p style={{ margin: 0, fontWeight: '800', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No employees assigned to this site yet.</p>
+                </div>
+              ) : manualEmployees.map(emp => {
+                const isPresent = manualAttendance[emp.employee_no]?.present || false
+                const ot = manualAttendance[emp.employee_no]?.ot || 0
+                return (
+                  <div key={emp.employee_no} style={{ background: 'white', borderRadius: '1.5rem', border: `2px solid ${isPresent ? 'var(--attendance-green)' : 'var(--border)'}`, overflow: 'hidden', transition: 'border-color 0.2s', boxShadow: isPresent ? '0 4px 14px rgba(16,185,129,0.15)' : 'var(--shadow)' }}>
+                    <div
+                      onClick={() => toggleManualPresent(emp.employee_no)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.1rem 1.25rem', cursor: 'pointer' }}
+                    >
+                      <div style={{ width: '44px', height: '44px', borderRadius: '0.85rem', background: isPresent ? 'var(--attendance-green)' : 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.1rem', color: isPresent ? 'white' : 'var(--secondary)', flexShrink: 0, transition: 'all 0.2s' }}>
+                        {getInitial(emp.name)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: '0 0 0.15rem', fontWeight: '800', color: 'var(--secondary)' }}>{emp.name}</p>
+                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: '700' }}>{emp.category} • {emp.employee_no}</p>
+                      </div>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: `2px solid ${isPresent ? 'var(--attendance-green)' : '#cbd5e1'}`, background: isPresent ? 'var(--attendance-green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}>
+                        {isPresent && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      </div>
+                    </div>
+
+                    {/* OT row */}
+                    {isPresent && (
+                      <div style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1.25rem', borderTop: '1px solid rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.04)' }}>
+                        <Clock style={{ width: '16px', height: '16px', color: '#f59e0b', marginRight: '0.5rem' }} />
+                        <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.85rem', flex: 1 }}>OverTime (OT)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <button onClick={e => { e.stopPropagation(); changeManualOT(emp.employee_no, -1) }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>−</button>
+                          <span style={{ fontWeight: '900', minWidth: '20px', textAlign: 'center', color: 'var(--secondary)' }}>{ot}</span>
+                          <button onClick={e => { e.stopPropagation(); changeManualOT(emp.employee_no, +1) }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>+</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <button
+              onClick={saveManualAttendance}
+              disabled={savingManual}
+              style={{ width: '100%', padding: '1.1rem', borderRadius: '1.5rem', background: 'var(--attendance-green)', color: 'white', border: 'none', fontWeight: '900', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', boxShadow: '0 8px 20px rgba(16,185,129,0.3)', marginTop: '1rem', marginBottom: '3rem' }}
+            >
+              {savingManual ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+              {savingManual ? 'SAVING...' : 'APPROVE ATTENDANCE'}
+            </button>
           </div>
         )}
 
@@ -671,7 +928,7 @@ export default function AttendanceApprovalPage() {
             <div className="report-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid var(--secondary)', paddingBottom: '1.5rem', marginBottom: '2.5rem' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', color: 'var(--brand)', marginBottom: '0.5rem' }}>
-                  <img src="/favicon.ico" alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+                  <img src="/Logo.png" alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
                   <span style={{ fontSize: '0.8rem', fontWeight: '900', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Construction ERP Official Record</span>
                 </div>
                 <h1 style={{ margin: 0, fontSize: '2.25rem', fontWeight: '1000', color: 'var(--secondary)', letterSpacing: '-0.02em', lineHeight: 1 }}>SITE ATTENDANCE REPORT</h1>
@@ -748,7 +1005,7 @@ export default function AttendanceApprovalPage() {
             </div>
 
             {/* Verification Section */}
-            <div style={{ marginTop: '5rem', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6rem', padding: '0 2rem' }}>
+            <div className="print-only-grid" style={{ marginTop: '5rem', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6rem', padding: '0 2rem' }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ height: '80px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', marginBottom: '1rem', color: '#cbd5e1', fontStyle: 'italic', fontSize: '0.8rem' }}>
                   Authorized Stamp & Signature
@@ -770,7 +1027,7 @@ export default function AttendanceApprovalPage() {
             </div>
 
             {/* Footer Tag */}
-            <div style={{ marginTop: '4rem', textAlign: 'center', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
+            <div className="print-only" style={{ marginTop: '4rem', textAlign: 'center', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
               <p style={{ margin: 0, fontSize: '0.65rem', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 Generated on {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </p>
@@ -785,6 +1042,8 @@ export default function AttendanceApprovalPage() {
           to { opacity: 1; transform: translateY(0); }
         }
 
+        .print-only { display: none !important; }
+
         @media print {
           @page { size: landscape; margin: 10mm; }
           body * { visibility: hidden; }
@@ -798,6 +1057,7 @@ export default function AttendanceApprovalPage() {
             border: none !important;
           }
           .no-print { display: none !important; }
+          .print-only { display: grid !important; }
           .print-area { border-radius: 0 !important; padding: 0 !important; }
           table { font-size: 0.6rem !important; }
           th, td { padding: 4px 2px !important; }

@@ -11,7 +11,8 @@ import {
   FileText,
   LogOut,
   HardHat,
-  X
+  X,
+  Wallet
 } from 'lucide-react'
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { name: 'Engineers', href: '/admin/engineers', icon: HardHat, color: 'var(--reports-indigo)' },
   { name: 'Attendance', href: '/admin/attendance', icon: CheckSquare, color: 'var(--attendance-green)' },
   { name: 'Salary', href: '/admin/salary', icon: DollarSign, color: 'var(--salary-teal)' },
+  { name: 'Advances', href: '/admin/advances', icon: Wallet, color: '#f59e0b' },
   { name: 'Reports', href: '/admin/reports', icon: FileText, color: 'var(--reports-indigo)' },
 ]
 
@@ -33,9 +35,9 @@ export default function Sidebar({ isOpen, setIsOpen }) {
       <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ background: 'white', padding: '0.4rem', borderRadius: '0.9rem', boxShadow: '0 4px 12px rgba(14,165,233,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src="/favicon.ico" alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+            <img src="/Logo.png" alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           </div>
-          <span style={{ fontWeight: '900', fontSize: '1.3rem', letterSpacing: '-0.03em', color: 'var(--secondary)' }}>CIVIL ERP</span>
+          <span style={{ fontWeight: '900', fontSize: '1.3rem', letterSpacing: '-0.03em', color: 'var(--secondary)' }}>PS Infra</span>
         </div>
 
         {/* Mobile Close Button */}
@@ -51,7 +53,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
       {/* Navigation Links */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = pathname.replace(/\/$/, '') === item.href.replace(/\/$/, '')
           return (
             <Link
               key={item.href}
@@ -64,18 +66,9 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                   window.location.reload()
                 }
               }}
-              className="btn"
+              className={`sidebar-link ${isActive ? 'active' : ''}`}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-                backgroundColor: isActive ? item.color : 'transparent',
-                color: isActive ? 'white' : 'var(--text-muted)',
-                textDecoration: 'none',
-                padding: '0.875rem 1.25rem',
-                borderRadius: '1.1rem',
-                transition: 'all 0.2s ease',
-                boxShadow: isActive ? `0 6px 14px ${item.color}55` : 'none'
+                '--item-color': item.color,
               }}
             >
               <item.icon className="w-5 h-5" style={{ color: isActive ? 'white' : item.color, flexShrink: 0 }} />

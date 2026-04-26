@@ -22,7 +22,7 @@ export default function SalaryPage() {
   const [employees, setEmployees] = useState([])
   const [sites, setSites] = useState([])           // [{ location, type, count }]
   const [selectedSite, setSelectedSite] = useState(null)
-  
+
   // Weekly generation state
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -64,7 +64,7 @@ export default function SalaryPage() {
       .eq('location', site.location)
       .eq('type', site.type)
       .order('date_to', { ascending: false })
-      
+
     // Group by date range
     const ranges = []
     const seen = new Set()
@@ -108,7 +108,7 @@ export default function SalaryPage() {
         if (r.is_present) attMap[r.employee_no].presentDays++
         attMap[r.employee_no].otHours += r.ot_hours || 0
       }
-      
+
       const advMap = {}
       for (const r of (advRes.data || [])) advMap[r.employee_no] = (advMap[r.employee_no] || 0) + Number(r.amount)
 
@@ -126,14 +126,14 @@ export default function SalaryPage() {
         const basicSalary = presentDays * payRate
         const otAmount = otHours * (payRate / 8)
         const grossSalary = basicSalary + otAmount
-        
+
         const advance = advMap[emp.employee_no] || 0
         const carryForward = carryMap[emp.employee_no] || 0
-        
+
         const netSalary = grossSalary - advance - carryForward
         return { ...emp, presentDays, otHours, basicSalary, otAmount, grossSalary, advance, carryForward, netSalary }
       })
-      
+
       rows.sort((a, b) => b.netSalary - a.netSalary)
       setSalaryRows(rows)
       setGenerated(true)
@@ -145,7 +145,7 @@ export default function SalaryPage() {
   async function closeWeek() {
     if (!salaryRows.length) return
     if (!confirm(`Are you sure you want to CLOSE the week of ${fmtDate(dateFrom)} to ${fmtDate(dateTo)}?\n\nThis will lock the records and save deficits for next week.`)) return
-    
+
     setSaving(true)
     try {
       const records = salaryRows.map(r => ({
@@ -185,7 +185,7 @@ export default function SalaryPage() {
     return salaryRows.reduce((acc, r) => ({
       presentDays: acc.presentDays + r.presentDays, otHours: acc.otHours + r.otHours,
       basic: acc.basic + r.basicSalary, otAmt: acc.otAmt + r.otAmount,
-      gross: acc.gross + r.grossSalary, advance: acc.advance + r.advance, 
+      gross: acc.gross + r.grossSalary, advance: acc.advance + r.advance,
       carry: acc.carry + r.carryForward, net: acc.net + r.netSalary
     }), { presentDays: 0, otHours: 0, basic: 0, otAmt: 0, gross: 0, advance: 0, carry: 0, net: 0 })
   }
@@ -198,13 +198,13 @@ export default function SalaryPage() {
         <th>No</th><th>Name</th><th>ID</th><th>Category</th><th>Days</th><th>OT Hrs</th><th>Basic</th><th>OT Amt</th><th>Gross</th><th>Advance</th><th>Prev Deficit</th><th>Net Pay</th>
       </tr>`
     salaryRows.forEach((r, i) => {
-      html += `<tr><td>${i+1}</td><td>${r.name}</td><td>${r.employee_no}</td><td>${r.category||'-'}</td>
+      html += `<tr><td>${i + 1}</td><td>${r.name}</td><td>${r.employee_no}</td><td>${r.category || '-'}</td>
         <td style="text-align:center">${r.presentDays}</td><td style="text-align:center">${r.otHours}</td>
         <td style="text-align:right">${fmtINR(r.basicSalary)}</td><td style="text-align:right">${fmtINR(r.otAmount)}</td>
         <td style="text-align:right;font-weight:bold">${fmtINR(r.grossSalary)}</td>
         <td style="text-align:right;color:#dc2626">${fmtINR(r.advance)}</td>
         <td style="text-align:right;color:#d97706">${fmtINR(r.carryForward)}</td>
-        <td style="text-align:right;color:${r.netSalary>=0?'#16a34a':'#dc2626'};font-weight:bold">${fmtINR(r.netSalary)}</td></tr>`
+        <td style="text-align:right;color:${r.netSalary >= 0 ? '#16a34a' : '#dc2626'};font-weight:bold">${fmtINR(r.netSalary)}</td></tr>`
     })
     html += `<tr style="background:#f1f5f9;font-weight:bold"><td colspan="4">TOTAL</td>
       <td style="text-align:center">${t.presentDays}</td><td style="text-align:center">${t.otHours}</td>
@@ -212,7 +212,7 @@ export default function SalaryPage() {
       <td style="text-align:right">${fmtINR(t.gross)}</td>
       <td style="text-align:right;color:#dc2626">${fmtINR(t.advance)}</td>
       <td style="text-align:right;color:#d97706">${fmtINR(t.carry)}</td>
-      <td style="text-align:right;color:${t.net>=0?'#16a34a':'#dc2626'}">${fmtINR(t.net)}</td></tr>
+      <td style="text-align:right;color:${t.net >= 0 ? '#16a34a' : '#dc2626'}">${fmtINR(t.net)}</td></tr>
     </table></body></html>`
     const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
     const link = document.createElement('a')
@@ -237,7 +237,15 @@ export default function SalaryPage() {
         <MapPin style={{ width: '14px', height: '14px' }} /> Select Site
       </h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
-        {sites.map(site => (
+        {sites.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', padding: '5rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+            <MapPin style={{ width: '48px', height: '48px', color: 'var(--salary-teal)', opacity: 0.5 }} />
+            <div>
+              <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.25rem' }}>No Active Sites</p>
+              <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '600' }}>There are no active sites with assigned employees to generate payroll for.</p>
+            </div>
+          </div>
+        ) : sites.map(site => (
           <button key={`${site.location}-${site.type}`} onClick={() => handleSelectSite(site)}
             style={{ background: 'white', border: '1px solid var(--border)', borderRadius: '1.25rem', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', textAlign: 'left', boxShadow: 'var(--shadow)', transition: 'all 0.2s' }}
           >
@@ -275,7 +283,7 @@ export default function SalaryPage() {
               <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.82rem', fontWeight: '700', textTransform: 'uppercase' }}>{selectedSite.type} • {selectedSite.count} workers</p>
             </div>
           </div>
-          
+
           {pastPeriods.length > 0 && (
             <button onClick={() => setShowHistory(!showHistory)} style={{ background: showHistory ? 'var(--secondary)' : 'white', border: showHistory ? '1.5px solid var(--secondary)' : '1.5px solid var(--border)', borderRadius: '0.75rem', padding: '0.6rem 1rem', fontSize: '0.85rem', fontWeight: '800', color: showHistory ? 'white' : 'var(--secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: 'var(--shadow)', transition: 'all 0.2s' }}>
               {showHistory ? <CalendarDays style={{ width: '16px', height: '16px' }} /> : <History style={{ width: '16px', height: '16px' }} />}
@@ -291,7 +299,11 @@ export default function SalaryPage() {
               <CheckCircle2 style={{ width: '18px', height: '18px', color: 'var(--attendance-green)' }} /> Past Closed Weeks
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {pastPeriods.map((p, i) => (
+              {pastPeriods.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>
+                  No past closed weeks found for this site.
+                </div>
+              ) : pastPeriods.map((p, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#f8fafc', borderRadius: '0.85rem', border: '1px solid var(--border)' }}>
                   <div>
                     <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)' }}>{fmtDate(p.date_from)} <span style={{ color: 'var(--text-muted)' }}>to</span> {fmtDate(p.date_to)}</p>
@@ -331,18 +343,18 @@ export default function SalaryPage() {
             {/* Summary Cards */}
             {generated && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: '0.75rem' }} className="no-print">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem' }} className="no-print">
                   {[
-                    { label: 'Total Workers', value: salaryRows.length, icon: <Users style={{ width: '20px', height: '20px', color: 'var(--brand)' }} />, color: 'var(--brand)' },
-                    { label: 'Total Gross', value: `₹${fmtINR(totals.gross)}`, icon: <TrendingUp style={{ width: '20px', height: '20px', color: 'var(--attendance-green)' }} />, color: 'var(--attendance-green)' },
-                    { label: 'Total Advance', value: `₹${fmtINR(totals.advance)}`, icon: <Wallet style={{ width: '20px', height: '20px', color: '#f59e0b' }} />, color: '#f59e0b' },
-                    { label: 'Net Payable', value: `₹${fmtINR(totals.net)}`, icon: <IndianRupee style={{ width: '20px', height: '20px', color: 'var(--salary-teal)' }} />, color: 'var(--salary-teal)' },
+                    { label: 'Total Workers', value: salaryRows.length, icon: <Users style={{ width: '1rem', height: '1rem', color: 'var(--brand)' }} />, color: 'var(--brand)' },
+                    { label: 'Total Gross', value: `₹${fmtINR(totals.gross)}`, icon: <TrendingUp style={{ width: '1rem', height: '1rem', color: 'var(--attendance-green)' }} />, color: 'var(--attendance-green)' },
+                    { label: 'Total Advance', value: `₹${fmtINR(totals.advance)}`, icon: <Wallet style={{ width: '1rem', height: '1rem', color: '#f59e0b' }} />, color: '#f59e0b' },
+                    { label: 'Net Payable', value: `₹${fmtINR(totals.net)}`, icon: <IndianRupee style={{ width: '1rem', height: '1rem', color: 'var(--salary-teal)' }} />, color: 'var(--salary-teal)' },
                   ].map(c => (
-                    <div key={c.label} style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: 'var(--shadow)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '0.85rem', background: `${c.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.icon}</div>
+                    <div key={c.label} style={{ background: 'white', borderRadius: '1rem', border: '1px solid var(--border)', padding: '0.75rem 0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.3rem', boxShadow: 'var(--shadow)' }}>
+                      <div style={{ width: '1.75rem', height: '1.75rem', borderRadius: '0.6rem', background: `${c.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{c.icon}</div>
                       <div>
-                        <p style={{ margin: '0 0 0.1rem', fontSize: '0.68rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.label}</p>
-                        <p style={{ margin: 0, fontWeight: '900', fontSize: '1.05rem', color: 'var(--secondary)' }}>{c.value}</p>
+                        <p style={{ margin: '0 0 0.05rem', fontSize: '0.58rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.label}</p>
+                        <p style={{ margin: 0, fontWeight: '900', fontSize: '0.9rem', color: 'var(--secondary)' }}>{c.value}</p>
                       </div>
                     </div>
                   ))}
@@ -352,13 +364,13 @@ export default function SalaryPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--brand)', marginBottom: '0.4rem' }}>
-                      <img src="/favicon.ico" alt="Logo" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
-                      <span style={{ fontSize: '0.72rem', fontWeight: '900', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Construction ERP — Salary Report</span>
+                      <img src="/Logo.png" alt="Logo" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
+                      <span style={{ fontSize: '0.72rem', fontWeight: '900', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Construction ERP - Salary Report</span>
                     </div>
                     <h2 style={{ margin: 0, fontWeight: '900', fontSize: '1.4rem', color: 'var(--secondary)' }}>{selectedSite.location} • {selectedSite.type}</h2>
                     <p style={{ margin: '0.15rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: '700' }}>
                       Period: <span style={{ color: 'var(--brand)' }}>{fmtDate(dateFrom)}</span> to <span style={{ color: 'var(--brand)' }}>{fmtDate(dateTo)}</span>
-                      <br/>
+                      <br />
                       {isWeekClosed && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.6rem', background: 'var(--attendance-green)', color: 'white', padding: '0.4rem 0.85rem', borderRadius: '0.6rem', fontSize: '0.75rem', fontWeight: '900', letterSpacing: '0.05em', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}><CheckCircle2 style={{ width: '15px', height: '15px' }} /> WEEK CLOSED & SAVED</span>}
                     </p>
                   </div>
@@ -423,7 +435,7 @@ export default function SalaryPage() {
                 </div>
 
                 {/* Verification Section */}
-                <div style={{ marginTop: '5rem', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6rem', padding: '0 2rem' }}>
+                <div className="print-only-grid" style={{ marginTop: '5rem', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6rem', padding: '0 2rem' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ height: '80px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', marginBottom: '1rem', color: '#cbd5e1', fontStyle: 'italic', fontSize: '0.8rem' }}>
                       Authorized Stamp & Signature
@@ -445,7 +457,7 @@ export default function SalaryPage() {
                 </div>
 
                 {/* Footer Tag */}
-                <div style={{ marginTop: '4rem', textAlign: 'center', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
+                <div className="print-only" style={{ marginTop: '4rem', textAlign: 'center', borderTop: '1px dashed #e2e8f0', paddingTop: '1.5rem' }}>
                   <p style={{ margin: 0, fontSize: '0.65rem', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                     Generated on {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
@@ -455,10 +467,12 @@ export default function SalaryPage() {
 
             {/* Empty State */}
             {!generated && !loading && (
-              <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)' }}>
-                <CalendarDays style={{ width: '48px', height: '48px', color: 'var(--salary-teal)', margin: '0 auto 1rem', opacity: 0.5 }} />
-                <h3 style={{ margin: '0 0 0.5rem', fontWeight: '800', color: 'var(--secondary)' }}>Generate New Pay Period</h3>
-                <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>Choose a date range above to calculate payroll and auto-fetch carry forwards.</p>
+              <div style={{ padding: '6rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                <CalendarDays style={{ width: '56px', height: '56px', color: 'var(--salary-teal)', opacity: 0.5 }} />
+                <div>
+                  <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.25rem' }}>Generate Pay Period</p>
+                  <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: '600' }}>Choose a date range above to calculate payroll and fetch carry forwards.</p>
+                </div>
               </div>
             )}
           </>

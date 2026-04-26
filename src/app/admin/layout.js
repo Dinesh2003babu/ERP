@@ -29,9 +29,9 @@ export default function AdminLayout({ children }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <div style={{ background: 'white', padding: '0.35rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src="/favicon.ico" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+            <img src="/Logo.png" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
           </div>
-          <span style={{ fontWeight: '1000', fontSize: '1.15rem', color: 'var(--secondary)', letterSpacing: '-0.02em' }}>CIVIL ERP</span>
+          <span style={{ fontWeight: '1000', fontSize: '1.15rem', color: 'var(--secondary)', letterSpacing: '-0.02em' }}>PS Infra</span>
         </div>
         <button
           onClick={() => setIsSidebarOpen(true)}

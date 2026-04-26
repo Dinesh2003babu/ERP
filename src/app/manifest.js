@@ -3,7 +3,7 @@ export const dynamic = "force-static";
 export default function manifest() {
   return {
     name: 'PS Infra Construction ERP',
-    short_name: 'Civil ERP',
+    short_name: 'PS Infra',
     description: 'Manage labor, attendance, and site costs efficiently.',
     start_url: '/',
     display: 'standalone',
@@ -11,7 +11,7 @@ export default function manifest() {
     theme_color: '#0ea5e9',
     icons: [
       {
-        src: '/favicon.ico',
+        src: '/Logo.png',
         sizes: 'any',
         type: 'image/x-icon',
       },

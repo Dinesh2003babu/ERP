@@ -21,7 +21,10 @@ import {
   CheckSquare,
   Wallet,
   PlusCircle,
-  Trash2
+  Trash2,
+  Camera,
+  MessageSquare,
+  Smartphone
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -71,6 +74,9 @@ export default function EngineerDashboard() {
   const [submitted, setSubmitted] = useState(false)
   const [existingLog, setExistingLog] = useState([])
   const [isApproved, setIsApproved] = useState(false)
+  const [offlineDraft, setOfflineDraft] = useState(false)
+  const [sitePhoto, setSitePhoto] = useState(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   // Advance view
   const [advances, setAdvances] = useState([])
@@ -83,6 +89,13 @@ export default function EngineerDashboard() {
     setMounted(true)
     loadProfile()
   }, [])
+
+  // Auto-save draft to local storage
+  useEffect(() => {
+    if (view === VIEW_ATTENDANCE && !isApproved && Object.keys(attendanceMap).length > 0) {
+      localStorage.setItem(`draft_att_${engineer.location}_${engineer.type}`, JSON.stringify(attendanceMap))
+    }
+  }, [attendanceMap, view, isApproved, engineer.location, engineer.type])
 
   // ── Load site employees ───────────────────────────────────
   async function loadProfile() {
@@ -202,8 +215,15 @@ export default function EngineerDashboard() {
       const pre = data.reduce((a, r) => ({ ...a, [r.employee_no]: { present: r.is_present, ot: r.ot_hours || 0 } }), {})
       setAttendanceMap(pre)
     } else {
-      const init = employees.reduce((a, e) => ({ ...a, [e.employee_no]: { present: false, ot: 0 } }), {})
-      setAttendanceMap(init)
+      // Try to load draft if exists
+      const draft = localStorage.getItem(`draft_att_${engineer.location}_${engineer.type}`)
+      if (draft) {
+        setAttendanceMap(JSON.parse(draft))
+        setOfflineDraft(true)
+      } else {
+        const init = employees.reduce((a, e) => ({ ...a, [e.employee_no]: { present: false, ot: 0 } }), {})
+        setAttendanceMap(init)
+      }
     }
   }
 
@@ -227,6 +247,27 @@ export default function EngineerDashboard() {
     }))
   }
 
+  async function handlePhotoUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${engineer.location}_${Date.now()}.${fileExt}`
+      const { data, error } = await supabase.storage
+        .from('site-photos')
+        .upload(fileName, file)
+
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('site-photos').getPublicUrl(fileName)
+      setSitePhoto(publicUrl)
+    } catch (err) {
+      alert('Photo upload failed: ' + err.message)
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
   async function submitAttendance() {
     if (submitting || isApproved) return
     try {
@@ -241,7 +282,7 @@ export default function EngineerDashboard() {
         is_present: attendanceMap[emp.employee_no]?.present || false,
         ot_hours: attendanceMap[emp.employee_no]?.ot || 0,
         status: 'pending',
-        marked_by: engineer.id  // ← save who marked this attendance
+        marked_by: engineer.id
       }))
 
       if (alreadySubmitted) {
@@ -250,13 +291,27 @@ export default function EngineerDashboard() {
             is_present: row.is_present,
             ot_hours: row.ot_hours,
             status: 'pending',
-            marked_by: engineer.id  // ← preserve on update too
+            marked_by: engineer.id,
+            photo_url: sitePhoto
           }).eq('employee_no', row.employee_no).eq('location', row.location).eq('type', row.type).eq('date', row.date)
         }
       } else {
         const { error } = await supabase.from('attendance').insert(rows)
         if (error) throw error
       }
+
+      // Save photo to separate table if exists
+      if (sitePhoto) {
+        await supabase.from('site_photos').insert({
+          location: engineer.location,
+          type: engineer.type,
+          date: today,
+          photo_url: sitePhoto,
+          marked_by: engineer.id
+        })
+      }
+
+      localStorage.removeItem(`draft_att_${engineer.location}_${engineer.type}`) // clear draft on success
       setSubmitted(true)
     } catch (err) {
       alert('Submission failed: ' + err.message)
@@ -586,7 +641,18 @@ export default function EngineerDashboard() {
         <CheckCircle2 style={{ width: '56px', height: '56px', color: 'var(--attendance-green)', margin: '0 auto 1rem' }} />
         <h2 style={{ margin: '0 0 0.5rem', fontWeight: '900' }}>Submitted!</h2>
         <p style={{ color: 'var(--text-muted)' }}>Attendance for <b>{fmtDate(getToday())}</b> sent to admin for approval.</p>
-        <button onClick={() => { setSubmitted(false); setView(VIEW_HOME) }} className="btn btn-primary" style={{ marginTop: '2rem' }}>Back to Home</button>
+
+        <button
+          onClick={() => {
+            const msg = `Hi Admin, I have submitted the attendance for ${engineer.location} (${engineer.type}) today. Please review and approve.`
+            window.open(`https://wa.me/918668189727?text=${encodeURIComponent(msg)}`, '_blank')
+          }}
+          style={{ width: '100%', marginTop: '1.5rem', background: '#25D366', color: 'white', border: 'none', padding: '1rem', borderRadius: '1.25rem', fontWeight: '900', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', boxShadow: '0 8px 20px rgba(37,211,102,0.3)' }}
+        >
+          <MessageSquare style={{ width: '20px', height: '20px' }} /> Notify via WhatsApp
+        </button>
+
+        <button onClick={() => { setSubmitted(false); setView(VIEW_HOME) }} style={{ width: '100%', marginTop: '1rem', background: 'var(--secondary)', color: 'white', border: 'none', padding: '1rem', borderRadius: '1.25rem', fontWeight: '800' }}>Back to Home</button>
       </div>
     )
 
@@ -600,7 +666,7 @@ export default function EngineerDashboard() {
           <h2 style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)' }}>Attendance</h2>
         </div>
 
-        {/* Today Date Card — static, no picker */}
+        {/* Today Date Card */}
         <div style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: 'var(--shadow)' }}>
           <CalendarDays style={{ width: '20px', height: '20px', color: 'var(--brand)', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
@@ -633,6 +699,31 @@ export default function EngineerDashboard() {
           </div>
         </div>
 
+        {/* Progress Photo Section */}
+        {!isApproved && (
+          <div style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1rem', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Camera style={{ width: '18px', height: '18px', color: 'var(--brand)' }} />
+              <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--secondary)' }}>Daily Site Progress Photo</span>
+            </div>
+
+            {!sitePhoto ? (
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--surface-hover)', border: '1px dashed var(--border)', borderRadius: '0.75rem', padding: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>
+                <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                {uploadingPhoto ? <Loader2 className="w-5 h-5 animate-spin" /> : <PlusCircle style={{ width: '20px', height: '20px' }} />}
+                {uploadingPhoto ? 'Uploading...' : 'Take or Upload Site Photo'}
+              </label>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <img src={sitePhoto} alt="Progress" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '0.75rem' }} />
+                <button onClick={() => setSitePhoto(null)} style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'rgba(244,63,94,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <Trash2 style={{ width: '14px', height: '14px' }} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Worker List header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.25rem' }}>
           <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)', fontSize: '1rem' }}>Worker List</p>
@@ -642,61 +733,68 @@ export default function EngineerDashboard() {
         </div>
 
         {/* Workers */}
-        {employees.map(emp => {
-          const isPresent = attendanceMap[emp.employee_no]?.present || false
-          const ot = attendanceMap[emp.employee_no]?.ot || 0
-          return (
-            <div key={emp.employee_no} style={{ background: 'white', borderRadius: '1.5rem', border: `2px solid ${isPresent ? 'var(--attendance-green)' : 'var(--border)'}`, overflow: 'hidden', transition: 'border-color 0.2s', boxShadow: isPresent ? '0 4px 14px rgba(16,185,129,0.15)' : 'var(--shadow)', opacity: isApproved ? 0.85 : 1 }}>
-              <div
-                onClick={() => togglePresent(emp.employee_no)}
-                style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.1rem 1.25rem', cursor: isApproved ? 'default' : 'pointer' }}
-              >
-                <div style={{ width: '44px', height: '44px', borderRadius: '0.85rem', background: isPresent ? 'var(--attendance-green)' : 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.1rem', color: isPresent ? 'white' : 'var(--secondary)', flexShrink: 0, transition: 'all 0.2s' }}>
-                  {getInitial(emp.name)}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 0.15rem', fontWeight: '800', color: 'var(--secondary)' }}>{emp.name}</p>
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: '700' }}>{emp.category} • ₹{fmtINR(emp.pay_rate)}/day</p>
-                </div>
-                <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: `2px solid ${isPresent ? 'var(--attendance-green)' : '#cbd5e1'}`, background: isPresent ? 'var(--attendance-green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}>
-                  {isPresent && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {employees.length === 0 ? (
+            <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <Users style={{ width: '3rem', height: '3rem', color: 'var(--text-muted)', opacity: 0.5 }} />
+              <div>
+                <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.1rem' }}>No Workers Assigned</p>
+                <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>There are no employees assigned to your current site.</p>
               </div>
-
-              {/* OT row — only when present and not approved */}
-              {isPresent && !isApproved && (
-                <div style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1.25rem', borderTop: '1px solid rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.04)' }}>
-                  <Clock style={{ width: '16px', height: '16px', color: '#f59e0b', marginRight: '0.5rem' }} />
-                  <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.85rem', flex: 1 }}>OverTime (OT)</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <button onClick={e => { e.stopPropagation(); changeOT(emp.employee_no, -1) }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>−</button>
-                    <span style={{ fontWeight: '900', minWidth: '20px', textAlign: 'center', color: 'var(--secondary)' }}>{ot}</span>
-                    <button onClick={e => { e.stopPropagation(); changeOT(emp.employee_no, +1) }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>+</button>
+            </div>
+          ) : employees.map(emp => {
+            const isPresent = attendanceMap[emp.employee_no]?.present || false
+            const ot = attendanceMap[emp.employee_no]?.ot || 0
+            return (
+              <div key={emp.employee_no} style={{ background: 'white', borderRadius: '1.5rem', border: `2px solid ${isPresent ? 'var(--attendance-green)' : 'var(--border)'}`, overflow: 'hidden', transition: 'border-color 0.2s', boxShadow: isPresent ? '0 4px 14px rgba(16,185,129,0.15)' : 'var(--shadow)', opacity: isApproved ? 0.85 : 1 }}>
+                <div
+                  onClick={() => togglePresent(emp.employee_no)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.1rem 1.25rem', cursor: isApproved ? 'default' : 'pointer' }}
+                >
+                  <div style={{ width: '44px', height: '44px', borderRadius: '0.85rem', background: isPresent ? 'var(--attendance-green)' : 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.1rem', color: isPresent ? 'white' : 'var(--secondary)', flexShrink: 0, transition: 'all 0.2s' }}>
+                    {getInitial(emp.name)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: '0 0 0.15rem', fontWeight: '800', color: 'var(--secondary)' }}>{emp.name}</p>
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: '700' }}>{emp.category} • ₹{fmtINR(emp.pay_rate)}/day</p>
+                  </div>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: `2px solid ${isPresent ? 'var(--attendance-green)' : '#cbd5e1'}`, background: isPresent ? 'var(--attendance-green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', flexShrink: 0 }}>
+                    {isPresent && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                   </div>
                 </div>
-              )}
-              {/* OT display when approved */}
-              {isPresent && isApproved && ot > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 1.25rem', borderTop: '1px solid rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.04)' }}>
-                  <Clock style={{ width: '14px', height: '14px', color: '#f59e0b', marginRight: '0.4rem' }} />
-                  <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.82rem' }}>OT: {ot}h</span>
-                </div>
-              )}
-            </div>
-          )
-        })}
 
-        {/* Submit — hidden when approved */}
-        {!isApproved && (
-          <button
-            onClick={submitAttendance}
-            disabled={submitting}
-            style={{ padding: '1.1rem', borderRadius: '1.5rem', border: 'none', fontWeight: '900', fontSize: '1rem', background: submitting ? 'var(--text-muted)' : 'var(--attendance-green)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', width: '100%', cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: '0 8px 20px rgba(16,185,129,0.3)', marginBottom: '2rem' }}
-          >
-            {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save style={{ width: '20px', height: '20px' }} />}
-            {submitting ? 'Submitting...' : existingLog.length > 0 ? 'Update & Resubmit' : 'Submit to Admin'}
-          </button>
-        )}
+                {isPresent && !isApproved && (
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1.25rem', borderTop: '1px solid rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.04)' }}>
+                    <Clock style={{ width: '16px', height: '16px', color: '#f59e0b', marginRight: '0.5rem' }} />
+                    <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.85rem', flex: 1 }}>OverTime (OT)</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <button onClick={e => { e.stopPropagation(); changeOT(emp.employee_no, -1) }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>−</button>
+                      <span style={{ fontWeight: '900', minWidth: '20px', textAlign: 'center', color: 'var(--secondary)' }}>{ot}</span>
+                      <button onClick={e => { e.stopPropagation(); changeOT(emp.employee_no, +1) }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid var(--border)', background: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--secondary)' }}>+</button>
+                    </div>
+                  </div>
+                )}
+                {isPresent && isApproved && ot > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 1.25rem', borderTop: '1px solid rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.04)' }}>
+                    <Clock style={{ width: '14px', height: '14px', color: '#f59e0b', marginRight: '0.4rem' }} />
+                    <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.82rem' }}>OT: {ot}h</span>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {!isApproved && (
+            <button
+              onClick={submitAttendance}
+              disabled={submitting}
+              style={{ padding: '1.1rem', borderRadius: '1.5rem', border: 'none', fontWeight: '900', fontSize: '1rem', background: submitting ? 'var(--text-muted)' : 'var(--attendance-green)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', width: '100%', cursor: submitting ? 'not-allowed' : 'pointer', boxShadow: '0 8px 20px rgba(16,185,129,0.3)', marginBottom: '2rem' }}
+            >
+              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save style={{ width: '20px', height: '20px' }} />}
+              {submitting ? 'Submitting...' : existingLog.length > 0 ? 'Update & Resubmit' : 'Submit to Admin'}
+            </button>
+          )}
+        </div>
       </div>
     )
   }
@@ -708,7 +806,6 @@ export default function EngineerDashboard() {
     const totalAdvanced = advances.reduce((s, a) => s + Number(a.amount), 0)
     return (
       <div style={{ maxWidth: '480px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0' }}>
           <button onClick={() => setView(VIEW_HOME)} style={{ background: 'white', border: '1px solid var(--border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, boxShadow: 'var(--shadow)' }}>
             <ArrowLeft style={{ width: '18px', height: '18px', color: 'var(--secondary)' }} />
@@ -719,7 +816,6 @@ export default function EngineerDashboard() {
           </div>
         </div>
 
-        {/* Summary card */}
         <div style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', borderRadius: '1.5rem', padding: '1.25rem 1.5rem', color: 'white', boxShadow: '0 8px 24px rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '1rem', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Wallet style={{ width: '26px', height: '26px', color: 'white' }} />
@@ -731,13 +827,11 @@ export default function EngineerDashboard() {
           </div>
         </div>
 
-        {/* Instructions */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.25rem' }}>
           <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)', fontSize: '1rem' }}>Worker List</p>
           <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>Tap to give advance</p>
         </div>
 
-        {/* Success toast */}
         {advSuccess && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16,185,129,0.08)', border: '1px solid var(--attendance-green)', borderRadius: '0.75rem', padding: '0.65rem 0.85rem' }}>
             <CheckCircle2 style={{ width: '18px', height: '18px', color: 'var(--attendance-green)', flexShrink: 0 }} />
@@ -745,12 +839,10 @@ export default function EngineerDashboard() {
           </div>
         )}
 
-        {/* Employee cards */}
         {employees.map(emp => {
           const isExpanded = advForm.employee_no === emp.employee_no
           return (
             <div key={emp.employee_no} style={{ background: 'white', borderRadius: '1.5rem', border: `2px solid ${isExpanded ? '#f59e0b' : 'var(--border)'}`, overflow: 'hidden', transition: 'border-color 0.2s', boxShadow: isExpanded ? '0 4px 14px rgba(245,158,11,0.15)' : 'var(--shadow)' }}>
-              {/* Employee row — tap to expand */}
               <div
                 onClick={() => setAdvForm(f => f.employee_no === emp.employee_no
                   ? { employee_no: '', amount: '', date: getToday(), reason: '' }
@@ -758,54 +850,48 @@ export default function EngineerDashboard() {
                 )}
                 style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1.1rem 1.25rem', cursor: 'pointer' }}
               >
-                <div style={{ width: '44px', height: '44px', borderRadius: '0.85rem', background: isExpanded ? 'rgba(245,158,11,0.15)' : 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.1rem', color: isExpanded ? '#f59e0b' : 'var(--secondary)', flexShrink: 0, transition: 'all 0.2s' }}>
+                <div style={{ width: '3rem', height: '3rem', borderRadius: '0.85rem', background: isExpanded ? 'rgba(245,158,11,0.15)' : 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.1rem', color: isExpanded ? '#f59e0b' : 'var(--secondary)', flexShrink: 0, transition: 'all 0.2s' }}>
                   {getInitial(emp.name)}
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: '0 0 0.15rem', fontWeight: '800', color: 'var(--secondary)' }}>{emp.name}</p>
                   <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: '700' }}>{emp.category} • {emp.employee_no}</p>
                 </div>
-                <Wallet style={{ width: '20px', height: '20px', color: isExpanded ? '#f59e0b' : '#cbd5e1', transition: 'color 0.2s', flexShrink: 0 }} />
+                <Wallet style={{ width: '1rem', height: '1rem', color: isExpanded ? '#f59e0b' : '#cbd5e1', transition: 'color 0.2s', flexShrink: 0 }} />
               </div>
 
-              {/* Inline advance entry — only when expanded */}
               {isExpanded && (
-                <div style={{ borderTop: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {/* Amount */}
+                <div style={{ borderTop: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <IndianRupee style={{ width: '16px', height: '16px', color: '#f59e0b', flexShrink: 0 }} />
-                    <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.85rem', flex: 1 }}>Advance Amount (₹)</span>
-                    <input
-                      type='number'
-                      placeholder='0'
-                      value={advForm.amount}
-                      onChange={e => setAdvForm(f => ({ ...f, amount: e.target.value }))}
-                      onClick={e => e.stopPropagation()}
-                      style={{ width: '110px', border: '1.5px solid #f59e0b', borderRadius: '0.65rem', padding: '0.4rem 0.6rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--secondary)', outline: 'none', textAlign: 'right' }}
-                    />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: '0 0 0.3rem', fontSize: '0.65rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Amount (₹)</p>
+                      <input
+                        type='number'
+                        placeholder='Enter Amount'
+                        value={advForm.amount}
+                        onChange={e => setAdvForm(f => ({ ...f, amount: e.target.value }))}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: '100%', border: '1.5px solid #f59e0b', borderRadius: '0.75rem', padding: '0.6rem 0.8rem', fontSize: '0.95rem', fontWeight: '900', color: 'var(--secondary)', outline: 'none' }}
+                      />
+                    </div>
                   </div>
-
-                  {/* Reason */}
-                  {/* <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Save style={{ width: '15px', height: '15px', color: '#f59e0b', flexShrink: 0 }} />
+                  <div>
+                    <p style={{ margin: '0 0 0.3rem', fontSize: '0.65rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Reason (Optional)</p>
                     <input
-                      type='text'
-                      placeholder='Reason (optional)'
+                      placeholder='Short reason...'
                       value={advForm.reason}
                       onChange={e => setAdvForm(f => ({ ...f, reason: e.target.value }))}
                       onClick={e => e.stopPropagation()}
-                      style={{ flex: 1, border: '1.5px solid var(--border)', borderRadius: '0.65rem', padding: '0.4rem 0.65rem', fontSize: '0.82rem', fontWeight: '600', color: 'var(--secondary)', outline: 'none' }}
+                      style={{ width: '100%', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '0.6rem 0.8rem', fontSize: '0.9rem', outline: 'none' }}
                     />
-                  </div> */}
-
-                  {/* Save button */}
+                  </div>
                   <button
                     onClick={e => { e.stopPropagation(); submitAdvance() }}
-                    disabled={!advForm.amount || advSubmitting}
-                    style={{ background: advForm.amount ? '#f59e0b' : '#e2e8f0', color: advForm.amount ? 'white' : '#94a3b8', border: 'none', borderRadius: '0.85rem', padding: '0.7rem', fontWeight: '900', fontSize: '0.88rem', cursor: advForm.amount ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', boxShadow: advForm.amount ? '0 4px 12px rgba(245,158,11,0.25)' : 'none', transition: 'all 0.2s' }}
+                    disabled={advSubmitting}
+                    style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', background: '#f59e0b', color: 'white', border: 'none', fontWeight: '900', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 12px rgba(245,158,11,0.2)' }}
                   >
-                    {advSubmitting ? <Loader2 className='w-4 h-4 animate-spin' /> : <Wallet style={{ width: '16px', height: '16px' }} />}
-                    {advSubmitting ? 'Saving...' : `Give ₹${advForm.amount || '0'} to ${emp.name.split(' ')[0]}`}
+                    {advSubmitting ? <Loader2 className='w-4 h-4 animate-spin' /> : <Save className='w-4 h-4' />}
+                    {advSubmitting ? 'SAVING...' : 'GIVE ADVANCE'}
                   </button>
                 </div>
               )}
@@ -813,36 +899,42 @@ export default function EngineerDashboard() {
           )
         })}
 
-        {/* Advance History */}
-        <div style={{ background: 'white', borderRadius: '1.5rem', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
-          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)' }}>Advance History</p>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700' }}>{advances.length} records</span>
-          </div>
+        <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 0.25rem' }}>
+          <TrendingUp style={{ width: '16px', height: '16px', color: 'var(--text-muted)' }} />
+          <p style={{ margin: 0, fontWeight: '800', color: 'var(--secondary)', fontSize: '0.95rem' }}>Recent History</p>
+        </div>
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '3rem' }}>
           {advLoading ? (
-            <div style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className='w-6 h-6 animate-spin' style={{ color: '#f59e0b', margin: '0 auto' }} /></div>
+            <div style={{ padding: '3rem', textAlign: 'center' }}><Loader2 className='w-8 h-8 animate-spin text-amber-500 mx-auto' /></div>
           ) : advances.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem' }}>No advance records for this site yet.</div>
+            <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <Wallet style={{ width: '3rem', height: '3rem', color: '#f59e0b', opacity: 0.5 }} />
+              <div>
+                <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.1rem' }}>No History Yet</p>
+                <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>No advance payments have been recorded for this site.</p>
+              </div>
+            </div>
           ) : advances.map(adv => (
-            <div key={adv.id} style={{ display: 'flex', alignItems: 'center', padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', gap: '0.85rem' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '0.85rem', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div key={adv.id} style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: 'var(--shadow)' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <IndianRupee style={{ width: '18px', height: '18px', color: '#f59e0b' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: '0 0 0.1rem', fontWeight: '800', color: 'var(--secondary)', fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{adv.employee_name || adv.employee_no}</p>
-                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                  {adv.date ? adv.date.split('-').reverse().join('-') : ''}{adv.reason ? ` • ${adv.reason}` : ''}
-                </p>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <p style={{ margin: 0, fontWeight: '900', color: '#f59e0b', fontSize: '1rem' }}>₹{fmtINR(adv.amount)}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <p style={{ margin: 0, fontWeight: '850', color: 'var(--secondary)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{adv.employee_name}</p>
+                  <p style={{ margin: 0, fontWeight: '950', color: '#f59e0b', fontSize: '1rem' }}>₹{fmtINR(adv.amount)}</p>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.15rem' }}>
+                  <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '700' }}>{fmtDate(adv.date)}{adv.reason ? ` • ${adv.reason}` : ''}</p>
+                  <button onClick={() => deleteAdvance(adv.id)} style={{ background: 'none', border: 'none', color: '#ef4444', padding: '0.2rem', cursor: 'pointer', opacity: 0.7 }}>
+                    <Trash2 style={{ width: '14px', height: '14px' }} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
-
-        <div style={{ height: '1rem' }} />
       </div>
     )
   }

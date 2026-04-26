@@ -201,7 +201,7 @@ export default function SitesPage() {
         </div>
 
         <div style={{ background: 'white', borderRadius: '1.25rem', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
-          
+
           <div style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ background: '#f0fdf4', padding: '0.6rem', borderRadius: '0.75rem' }}>
@@ -220,27 +220,27 @@ export default function SitesPage() {
           </div>
 
           <div style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--border)' }}>
-             <div style={{ background: '#eff6ff', padding: '0.6rem', borderRadius: '0.75rem' }}>
-                <User style={{ width: '18px', height: '18px', color: '#3b82f6' }} />
-             </div>
-             <div>
-               <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Assigned Engineer</p>
-               <p style={{ margin: '0.1rem 0 0', fontWeight: '900', color: 'var(--secondary)', fontSize: '0.95rem' }}>
-                 {selectedSite.engineer || 'Unassigned'}
-               </p>
-             </div>
+            <div style={{ background: '#eff6ff', padding: '0.6rem', borderRadius: '0.75rem' }}>
+              <User style={{ width: '18px', height: '18px', color: '#3b82f6' }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Assigned Engineer</p>
+              <p style={{ margin: '0.1rem 0 0', fontWeight: '900', color: 'var(--secondary)', fontSize: '0.95rem' }}>
+                {selectedSite.engineer || 'Unassigned'}
+              </p>
+            </div>
           </div>
 
           <div style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-             <div style={{ background: '#fffbeb', padding: '0.6rem', borderRadius: '0.75rem' }}>
-                <Users style={{ width: '18px', height: '18px', color: '#d97706' }} />
-             </div>
-             <div>
-               <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Active Labour</p>
-               <p style={{ margin: '0.1rem 0 0', fontWeight: '900', color: 'var(--secondary)', fontSize: '0.95rem' }}>
-                 {selectedSite.workforce} <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Workers</span>
-               </p>
-             </div>
+            <div style={{ background: '#fffbeb', padding: '0.6rem', borderRadius: '0.75rem' }}>
+              <Users style={{ width: '18px', height: '18px', color: '#d97706' }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Active Labour</p>
+              <p style={{ margin: '0.1rem 0 0', fontWeight: '900', color: 'var(--secondary)', fontSize: '0.95rem' }}>
+                {selectedSite.workforce} <span style={{ fontWeight: '700', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Workers</span>
+              </p>
+            </div>
           </div>
 
         </div>
@@ -333,7 +333,15 @@ export default function SitesPage() {
 
       {/* Sites Listing */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {filteredSites.map((site) => (
+        {filteredSites.length === 0 ? (
+          <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+            <MapPin style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5 }} />
+            <div>
+              <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.1rem' }}>No Sites Found</p>
+              <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>Try adjusting your search or filters.</p>
+            </div>
+          </div>
+        ) : filteredSites.map((site) => (
           <button
             key={`${site.location}-${site.type}`}
             onClick={() => { setSelectedSite(site); setView(VIEW_PROFILE); }}
@@ -361,9 +369,6 @@ export default function SitesPage() {
             )}
           </button>
         ))}
-        {filteredSites.length === 0 && (
-          <div className="empty-state">No sites found.</div>
-        )}
       </div>
 
       {/* Summary Stats */}
@@ -381,8 +386,8 @@ export default function SitesPage() {
 
       {/* Add Site Modal */}
       {showAddSite && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ background: 'white', borderRadius: '1.5rem', width: '100%', maxWidth: '450px', padding: '2rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto' }}>
+          <div style={{ background: 'white', borderRadius: '1.5rem', width: '100%', maxWidth: '450px', padding: '2rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', margin: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem' }}>
               <h2 style={{ margin: 0, color: 'var(--secondary)', fontWeight: '900', fontSize: '1.5rem' }}>Add New Site</h2>
               <button onClick={() => setShowAddSite(false)} style={{ background: '#f8fafc', border: 'none', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', display: 'flex' }}>
@@ -398,6 +403,8 @@ export default function SitesPage() {
               <div>
                 <p style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.025em' }}>Project Type</p>
                 <select value={newSite.type} onChange={e => setNewSite({ ...newSite, type: e.target.value })} style={{ width: '100%', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid var(--border)', outline: 'none', fontSize: '0.95rem', background: 'white' }}>
+                  <option value="Bridge">Bridge</option>
+                  <option value="Building">Building</option>
                   <option value="Commercial">Commercial</option>
                   <option value="Residential">Residential</option>
                   <option value="Infrastructure">Infrastructure</option>

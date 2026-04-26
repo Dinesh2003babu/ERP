@@ -282,7 +282,15 @@ export default function EmployeesPage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {filteredEmployees.map((emp) => (
+          {filteredEmployees.length === 0 ? (
+            <div style={{ padding: '4rem 2rem', textAlign: 'center', background: 'white', borderRadius: '1.5rem', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <Users style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5 }} />
+              <div>
+                <p style={{ margin: 0, fontWeight: '900', color: 'var(--secondary)', fontSize: '1.1rem' }}>No Employees Found</p>
+                <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}>Try adjusting your search or filters.</p>
+              </div>
+            </div>
+          ) : filteredEmployees.map((emp) => (
             <button
               key={emp.employee_no}
               onClick={() => handleViewProfile(emp)}
@@ -310,8 +318,8 @@ export default function EmployeesPage() {
 
         {/* Add Employee Modal */}
         {showAddEmployee && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: 'white', borderRadius: '1.25rem', width: '90%', maxWidth: '500px', padding: '2rem', boxShadow: 'var(--shadow-lg)' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto' }}>
+            <div style={{ background: 'white', borderRadius: '1.25rem', width: '100%', maxWidth: '500px', padding: '2rem', boxShadow: 'var(--shadow-lg)', margin: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h2 style={{ margin: 0, color: 'var(--secondary)', fontWeight: '900', fontSize: '1.5rem' }}>Add New Employee</h2>
                 <button onClick={() => setShowAddEmployee(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem' }}>
@@ -338,7 +346,10 @@ export default function EmployeesPage() {
                       <option value="Mason">Mason</option>
                       <option value="Carpenter">Carpenter</option>
                       <option value="Foreman">Foreman</option>
+                      <option value="Electrician">Electrician</option>
                       <option value="Operator">Operator</option>
+                      <option value="Centering">Centering Fitter</option>
+                      <option value="Steel Fitter">Steel Fitter</option>
                     </select>
                   </div>
                   <div style={{ flex: '1 1 200px' }}>
